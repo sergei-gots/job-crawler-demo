@@ -34,18 +34,21 @@ Create a clean, well-structured MVP that demonstrates the full tech stack: TypeS
 ### Infrastructure
 - **Docker + Docker Compose** — Local environment (Postgres, Redis, Elasticsearch)
 
-## Data Sources (MVP)
+## Data Sources
 
-Predefined sources the user can select when creating a Crawler Job:
+Given a 2-week timeline, MVP scope is **one source, done well**, rather than three done thinly:
 
-| Key             | Site                     | Puppeteer | Notes                                   |
-|-----------------|--------------------------|-----------|-----------------------------------------|
-| `habr_career`   | career.habr.com          | tbd       | Primary source (RU tech jobs)           |
-| `moikrug`       | moikrug.ru               | false     | hh-like, simpler markup                 |
-| `craigslist`    | craigslist.org (SW jobs) | false     | International example, multiple cities  |
+| Key             | Site                     | Status | Puppeteer | Notes                                   |
+|-----------------|--------------------------|--------|-----------|------------------------------------------|
+| `habr_career`   | career.habr.com          | MVP    | tbd — verify against real robots.txt/markup when building the crawler | RU tech jobs; good fit for AI skill-extraction demo |
+| `moikrug`       | moikrug.ru               | post-MVP | false   | hh-like, simpler markup                 |
+| `craigslist`    | craigslist.org (SW jobs) | post-MVP | false   | International example, multiple cities  |
 
-For each source we define: `usePuppeteer` (true/false), base URL(s), and the CSS selectors /
-fields to parse. Always respect each site's `robots.txt` and apply rate limiting.
+`moikrug` and `craigslist` are deferred — add them later as additional `CrawlStrategy` adapters if
+time allows, without changing the crawler architecture.
+
+For the active source we define: `usePuppeteer` (true/false), base URL(s), and the CSS selectors /
+fields to parse. Always respect the site's `robots.txt` and apply rate limiting.
 
 ## Coding Standards
 
