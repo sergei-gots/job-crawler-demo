@@ -1,0 +1,16 @@
+{
+  "name": "jobcrawler-demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "JobCrawler Demo — modular crawling + search + AI enrichment stack",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev --workspace apps/api",
+    "dev:web": "npm run dev --workspace apps/web",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "license": "MIT"
+}
