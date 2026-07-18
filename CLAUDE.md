@@ -72,6 +72,10 @@ fields to parse. Always respect each site's `robots.txt` and apply rate limiting
 - Keep `main` branch stable.
 - Commit often, push regularly.
 - All code must be in English.
+- Claude drafts the commit message(s) and the pull request description for each step of work,
+  in the usual format: a summary of what changed and why, plus a test plan / checklist of what
+  still needs manual review or testing (e.g. "not yet covered by automated tests — verify
+  manually: ..."). The user reviews and creates the actual PR.
 
 ## User Stories (MVP)
 
@@ -110,6 +114,9 @@ Full field definitions live in `ARCHITECTURE.md`. Core entities:
 - AI enrichment goes through an interface; ship a `MockAIEnricher` first, real Claude API later.
 - Keep the architecture modular and easy to extend.
 - Prefer simplicity for MVP (avoid over-engineering).
+- Whenever a step changes, adds to, or invalidates something described in `CLAUDE.md`,
+  `README.md`, or `ARCHITECTURE.md`, update the affected file(s) as part of that step —
+  don't let the docs drift out of sync with the code.
 
 ## Project Structure (Target)
 
