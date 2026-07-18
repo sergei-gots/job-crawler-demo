@@ -79,6 +79,14 @@ fields to parse. Always respect the site's `robots.txt` and apply rate limiting.
   in the usual format: a summary of what changed and why, plus a test plan / checklist of what
   still needs manual review or testing (e.g. "not yet covered by automated tests — verify
   manually: ..."). The user reviews and creates the actual PR.
+- **No automatic merges, ever.** Every change lands on a feature branch and goes through a PR;
+  `main` only moves when the user reviews and merges it themselves. Claude never merges a PR,
+  even if asked to "just finish it up" — merging is always a manual, explicit user action.
+- Every PR description must include, in full: (1) a step-by-step account of what was actually
+  done (not just a summary — enough detail that the user can follow the reasoning without
+  re-reading the diff), and (2) a **review checklist** of concrete things the user should verify
+  before merging (commands to run, URLs to open, edge cases to try, anything not covered by
+  automated checks).
 
 ## User Stories (MVP)
 
