@@ -55,10 +55,9 @@
 | Field         | Type            | Notes                                                    |
 |---------------|-----------------|-----------------------------------------------------------|
 | id            | uuid (PK)       |                                                           |
-| email         | string          | unique                                                   |
+| email         | string          | unique; editable via `PATCH /users/me` (re-checked for uniqueness, requires `currentPassword`) |
 | passwordHash  | string          | bcrypt                                                   |
-| firstName     | string \| null  | nullable at signup; required when submitting a profile edit (enforced by the `PATCH /users/me` request schema, not a DB constraint) |
-| lastName      | string \| null  | optional                                                 |
+| name          | string \| null  | nullable at signup (registration only collects email/password); required when submitting a profile edit (enforced by the `PATCH /users/me` request schema, not a DB constraint) |
 | createdAt     | timestamp       |                                                           |
 | updatedAt     | timestamp       |                                                           |
 

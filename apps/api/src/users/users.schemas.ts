@@ -1,8 +1,9 @@
 import { z } from "zod";
 
 export const updateProfileSchema = z.object({
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1).optional(),
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Enter a valid email"),
+  currentPassword: z.string().min(1, "Current password is required"),
 });
 
 export const changePasswordSchema = z.object({

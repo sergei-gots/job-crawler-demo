@@ -7,9 +7,10 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { ApiError } from "@/shared/lib/api";
 import { Button } from "@/shared/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
+import { PasswordInput } from "@/shared/ui/password-input";
 import { register as registerUser } from "../api/register";
 import { registerSchema, type RegisterFormValues } from "../model/register-schema";
 
@@ -37,6 +38,7 @@ export function RegisterForm() {
     <Card className="w-full max-w-sm">
       <CardHeader>
         <CardTitle>Create an account</CardTitle>
+        <CardDescription>Enter your email and password to create your account.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
@@ -47,14 +49,14 @@ export function RegisterForm() {
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" {...register("password")} />
+            <PasswordInput id="password" {...register("password")} />
             {errors.password && <p className="text-sm text-red-500">{errors.password.message}</p>}
           </div>
           {serverError && <p className="text-sm text-red-500">{serverError}</p>}
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? "Creating account..." : "Register"}
           </Button>
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-muted-foreground">
             Already have an account?{" "}
             <Link href="/login" className="font-medium underline">
               Sign in

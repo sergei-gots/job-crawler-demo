@@ -9,8 +9,7 @@ const SALT_ROUNDS = 10;
 export interface PublicUser {
   id: string;
   email: string;
-  firstName: string | null;
-  lastName: string | null;
+  name: string | null;
 }
 
 export interface AuthResult {
@@ -18,13 +17,8 @@ export interface AuthResult {
   user: PublicUser;
 }
 
-function toPublicUser(user: {
-  id: string;
-  email: string;
-  firstName: string | null;
-  lastName: string | null;
-}): PublicUser {
-  return { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName };
+function toPublicUser(user: { id: string; email: string; name: string | null }): PublicUser {
+  return { id: user.id, email: user.email, name: user.name };
 }
 
 export async function registerUser(input: RegisterInput): Promise<AuthResult> {

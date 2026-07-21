@@ -31,18 +31,17 @@ export function ProfilePage() {
   if (!token) return null;
 
   return (
-    <main className="flex flex-1 justify-center p-4">
+    <main className="flex flex-1 justify-start p-4 md:p-8">
       <div className="flex w-full max-w-lg flex-col gap-6">
         <h1 className="text-2xl font-semibold">Profile</h1>
         {error && <p className="text-sm text-red-500">{error}</p>}
         {user ? (
           <>
             <UpdateProfileForm user={user} token={token} onUpdated={setUser} />
-            <hr className="border-zinc-200 dark:border-zinc-800" />
             <ChangePasswordForm token={token} />
           </>
         ) : (
-          <p className="text-sm text-zinc-500">Loading...</p>
+          <p className="text-sm text-muted-foreground">Loading...</p>
         )}
       </div>
     </main>

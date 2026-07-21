@@ -6,8 +6,8 @@ import { useForm } from "react-hook-form";
 import { ApiError } from "@/shared/lib/api";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
-import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
+import { PasswordInput } from "@/shared/ui/password-input";
 import { changePassword } from "../api/change-password";
 import { changePasswordSchema, type ChangePasswordFormValues } from "../model/change-password-schema";
 
@@ -47,21 +47,21 @@ export function ChangePasswordForm({ token }: ChangePasswordFormProps) {
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="currentPassword">Current password</Label>
-            <Input id="currentPassword" type="password" {...register("currentPassword")} />
+            <PasswordInput id="currentPassword" {...register("currentPassword")} />
             {errors.currentPassword && (
               <p className="text-sm text-red-500">{errors.currentPassword.message}</p>
             )}
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="newPassword">New password</Label>
-            <Input id="newPassword" type="password" {...register("newPassword")} />
+            <PasswordInput id="newPassword" {...register("newPassword")} />
             {errors.newPassword && (
               <p className="text-sm text-red-500">{errors.newPassword.message}</p>
             )}
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="confirmNewPassword">Confirm new password</Label>
-            <Input id="confirmNewPassword" type="password" {...register("confirmNewPassword")} />
+            <PasswordInput id="confirmNewPassword" {...register("confirmNewPassword")} />
             {errors.confirmNewPassword && (
               <p className="text-sm text-red-500">{errors.confirmNewPassword.message}</p>
             )}

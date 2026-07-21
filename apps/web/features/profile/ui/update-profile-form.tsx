@@ -9,6 +9,7 @@ import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
+import { PasswordInput } from "@/shared/ui/password-input";
 import { updateProfile } from "../api/update-profile";
 import { updateProfileSchema, type UpdateProfileFormValues } from "../model/update-profile-schema";
 
@@ -28,7 +29,7 @@ export function UpdateProfileForm({ user, token, onUpdated }: UpdateProfileFormP
     formState: { errors, isSubmitting },
   } = useForm<UpdateProfileFormValues>({
     resolver: zodResolver(updateProfileSchema),
-    values: { firstName: user.firstName ?? "", lastName: user.lastName ?? "" },
+    values: { name: user.name ?? "", email: user.email, currentPassword: "" },
   });
 
   async function onSubmit(values: UpdateProfileFormValues) {
@@ -46,25 +47,26 @@ export function UpdateProfileForm({ user, token, onUpdated }: UpdateProfileFormP
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Profile</CardTitle>
+        <CardTitle>Account details</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
-            <Label>Email</Label>
-            <Input value={user.email} disabled />
+            <Label htmlFor="name">Name</Label>
+            <Input id="name" {...register("name")} />
+            {errors.name && <p className="text-sm text-red-500">{errors.name.message}</p>}
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="firstName">First name</Label>
-            <Input id="firstName" {...register("firstName")} />
-            {errors.firstName && (
-              <p className="text-sm text-red-500">{errors.firstName.message}</p>
+            <Label htmlFor="email">Email</Label>
+            <Input id="email" type="email" {...register("email")} />
+            {errors.email && <p className="text-sm text-red-500">{errors.email.message}</p>}
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="currentPassword">Current password</Label>
+            <PasswordInput id="currentPassword" {...register("currentPassword")} />
+            {errors.currentPassword && (
+              <p className="text-sm text-red-500">{errors.currentPassword.message}</p>
             )}
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="lastName">Last name</Label>
-            <Input id="lastName" {...register("lastName")} />
-            {errors.lastName && <p className="text-sm text-red-500">{errors.lastName.message}</p>}
           </div>
           {serverError && <p className="text-sm text-red-500">{serverError}</p>}
           {success && <p className="text-sm text-green-600">Profile updated.</p>}

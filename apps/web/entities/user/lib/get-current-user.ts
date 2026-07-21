@@ -3,8 +3,7 @@ import { getJson } from "@/shared/lib/api";
 export interface CurrentUser {
   id: string;
   email: string;
-  firstName: string | null;
-  lastName: string | null;
+  name: string | null;
 }
 
 export async function getCurrentUser(token: string): Promise<CurrentUser> {
