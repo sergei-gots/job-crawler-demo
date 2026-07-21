@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: job-crawler-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-job_crawler}
+    ports:
+      # host 5435 -> container 5432 (5432/5439 are used by other local Postgres instances)
+      - "5435:5432"
+    volumes:
+      - job_crawler_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-job_crawler}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  job_crawler_pgdata:

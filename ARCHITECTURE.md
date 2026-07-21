@@ -52,13 +52,15 @@
 ## Data models
 
 ### User (PostgreSQL)
-| Field         | Type        | Notes                          |
-|---------------|-------------|--------------------------------|
-| id            | uuid (PK)   |                                |
-| email         | string      | unique                         |
-| passwordHash  | string      | bcrypt/argon2                  |
-| createdAt     | timestamp   |                                |
-| updatedAt     | timestamp   |                                |
+| Field         | Type            | Notes                                                    |
+|---------------|-----------------|-----------------------------------------------------------|
+| id            | uuid (PK)       |                                                           |
+| email         | string          | unique                                                   |
+| passwordHash  | string          | bcrypt                                                   |
+| firstName     | string \| null  | nullable at signup; required when submitting a profile edit (enforced by the `PATCH /users/me` request schema, not a DB constraint) |
+| lastName      | string \| null  | optional                                                 |
+| createdAt     | timestamp       |                                                           |
+| updatedAt     | timestamp       |                                                           |
 
 ### CrawlerJob (PostgreSQL)
 | Field         | Type                | Notes                                             |
