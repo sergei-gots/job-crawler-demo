@@ -8,23 +8,47 @@ data models and component design.
 ## Status: implemented so far
 
 - Monorepo scaffold (npm workspaces): `apps/api` (Express) + `apps/web` (Next.js)
-- `apps/api`: minimal Express + TypeScript server, Winston logging, `GET /health`
-- `apps/web`: Next.js (App Router, TypeScript, Tailwind), ready for Feature-Sliced Design layers
+- `apps/api`: Express + TypeScript server, Winston logging, `GET /health`
+- PostgreSQL via Docker Compose, Prisma ORM, `User` model (email, password hash, optional name)
+- JWT auth: `POST /auth/register`, `POST /auth/login`, `GET /auth/me`
+- Profile management: `PATCH /users/me` (name + email, requires current password),
+  `PATCH /users/me/password`
+- `apps/web`: Next.js (App Router, TypeScript, Tailwind), Feature-Sliced Design layers
+  (`entities/session`, `entities/user`, `features/auth`, `features/profile`,
+  `widgets/sidebar`, `widgets/dashboard`, `widgets/profile`) — login/register pages, a
+  protected dashboard stub, and a profile page (edit name, change password)
 
-Not yet implemented: JWT auth, crawler, Elasticsearch/Redis integration, AI enrichment, search UI.
+Not yet implemented: crawler, Elasticsearch/Redis integration, AI enrichment, search UI.
 Track progress against the MVP plan in `CLAUDE.md` → User Stories.
 
 ## Getting started
 
-Requirements: Node.js 24+, npm 11+.
+Requirements: Node.js 24+, npm 11+, Docker (for Postgres).
 
 ```bash
-npm install        # installs both apps/api and apps/web
-npm run dev:api     # apps/api  → http://localhost:4000  (GET /health)
-npm run dev:web     # apps/web  → http://localhost:3000
+docker compose up -d db   # Postgres on localhost:5435 (container: job-crawler-db)
+npm install                # installs both apps/api and apps/web
+npm run dev:api             # apps/api  → http://localhost:4000  (GET /health)
+npm run dev:web             # apps/web  → http://localhost:3000
 ```
 
-Each app also has its own `.env` (see `apps/api/.env.example`); copy it to `.env` before running.
+`npm install` here is the plain npm command, not a script we defined — there's no `install` entry
+in `package.json` `scripts`. It behaves this way because of the root `package.json`'s
+`"workspaces": ["apps/*"]` field: npm reads `apps/api/package.json` and `apps/web/package.json`
+alongside the root one and installs everything into a single root `node_modules` (with the two
+apps symlinked in), so one `npm install` at the repo root covers both apps — no need to `cd` into
+each and install separately. `dev:api`/`dev:web`/`build`/`lint`, by contrast, *are* our own scripts
+(see `package.json` → `scripts`), each delegating to the matching command inside that workspace via
+`npm run <script> --workspace <path>`.
+
+Each app also has its own `.env` (see `apps/api/.env.example` and `apps/web/.env.example`); copy
+each to `.env` (`apps/web` uses `.env.local`) before running. `apps/api` needs `DATABASE_URL`
+pointing at the Postgres container and a `JWT_SECRET`. After the database is up, run migrations
+once from `apps/api`:
+
+```bash
+npm run --workspace apps/api prisma:migrate
+```
 
 ## Project structure
 

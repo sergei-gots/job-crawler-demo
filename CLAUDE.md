@@ -11,6 +11,7 @@ Create a clean, well-structured MVP that demonstrates the full tech stack: TypeS
 ## Tech Stack
 
 ### Backend (`apps/api`)
+
 - **TypeScript + Node.js + Express** — Core backend and REST API
 - **Puppeteer** — Crawling JavaScript-rendered pages (only when enabled per job)
 - **Axios + Cheerio** — Fast static page crawling
@@ -25,6 +26,7 @@ Create a clean, well-structured MVP that demonstrates the full tech stack: TypeS
 - **Winston** — Structured logging
 
 ### Frontend (`apps/web`)
+
 - **Next.js + React** — Dashboard SPA, organized with **Feature-Sliced Design (FSD)**.
   Reuses the FSD skeleton and auth flow patterns from the Expense Tracker project
   (login/register, `entities/session`, `useRequireAuth`, `shared/lib/api.ts`, `shared/ui`),
@@ -32,17 +34,18 @@ Create a clean, well-structured MVP that demonstrates the full tech stack: TypeS
 - **shadcn/ui** — UI components routed into `shared/ui`
 
 ### Infrastructure
+
 - **Docker + Docker Compose** — Local environment (Postgres, Redis, Elasticsearch)
 
 ## Data Sources
 
 Given a 2-week timeline, MVP scope is **one source, done well**, rather than three done thinly:
 
-| Key             | Site                     | Status | Puppeteer | Notes                                   |
-|-----------------|--------------------------|--------|-----------|------------------------------------------|
-| `habr_career`   | career.habr.com          | MVP    | tbd — verify against real robots.txt/markup when building the crawler | RU tech jobs; good fit for AI skill-extraction demo |
-| `moikrug`       | moikrug.ru               | post-MVP | false   | hh-like, simpler markup                 |
-| `craigslist`    | craigslist.org (SW jobs) | post-MVP | false   | International example, multiple cities  |
+| Key           | Site                     | Status   | Puppeteer                                                             | Notes                                               |
+| ------------- | ------------------------ | -------- | --------------------------------------------------------------------- | --------------------------------------------------- |
+| `habr_career` | career.habr.com          | MVP      | tbd — verify against real robots.txt/markup when building the crawler | RU tech jobs; good fit for AI skill-extraction demo |
+| `moikrug`     | moikrug.ru               | post-MVP | false                                                                 | hh-like, simpler markup                             |
+| `craigslist`  | craigslist.org (SW jobs) | post-MVP | false                                                                 | International example, multiple cities              |
 
 `moikrug` and `craigslist` are deferred — add them later as additional `CrawlStrategy` adapters if
 time allows, without changing the crawler architecture.
@@ -60,6 +63,7 @@ fields to parse. Always respect the site's `robots.txt` and apply rate limiting.
 - Clear comments for complex logic
 
 ### Architecture methodologies (important — two different worlds)
+
 - **Frontend (`apps/web`)** follows **Feature-Sliced Design (FSD)**: layers
   `app → widgets → features → entities → shared`. Import rule: a layer may only import
   from layers below it, never sideways or upward; cross-slice imports go through a slice's
@@ -128,6 +132,74 @@ Full field definitions live in `ARCHITECTURE.md`. Core entities:
 - Whenever a step changes, adds to, or invalidates something described in `CLAUDE.md`,
   `README.md`, or `ARCHITECTURE.md`, update the affected file(s) as part of that step —
   don't let the docs drift out of sync with the code.
+
+## Product UI Principles
+
+This application is a crawler management console.
+
+Prioritize:
+- clarity of workflows over visual decoration
+- showing job status and progress
+- clear distinction between configuration and results
+- operational information visibility
+
+Main user actions should be obvious:
+- create crawler job
+- configure source
+- run crawler
+- inspect results
+- review history
+
+## UI Design Guidelines
+
+Reference screenshots live in `.claude/.design-samples/` (git-ignored, local-only).
+Use those samples as the default visual language. Introduce new patterns only when the workflow
+requires them.
+
+- **Application pages should not use centered layouts.** Page content is left-positioned with
+  breathing-room padding (`items-start justify-start p-8 md:p-16` for full-page forms like
+  login/register; `justify-start p-4 md:p-8` for the main content area next to the sidebar) — this
+  is the current choice for login/register too. Standalone marketing/auth screens may use centered
+  layouts if explicitly designed that way (e.g. a future landing page) — this isn't a blanket ban,
+  just the default for everything we've built so far.
+- **Boxed sections, not flat lists.** Any logically distinct block of UI (a form, the sidebar's
+  user info, the sidebar's nav) is wrapped in `shared/ui/card.tsx`'s `Card`/`CardHeader`/
+  `CardTitle`/`CardDescription`/`CardContent` — not a bare `<div>`.
+- **Separate cards, not dividers.** When two related sections sit in the same column (e.g. "Account
+  details" and "Change password"), separate them with layout spacing (`gap-6` on the parent) —
+  not a visible `<hr>` rule line.
+- **Active navigation state must be visually distinguishable.** Prefer a border-based active state
+  (`border border-border` on the active item, `border-transparent` on inactive ones to reserve the
+  same width) unless another pattern is already established for that context.
+- **Password fields always use `shared/ui/password-input.tsx`** (`PasswordInput`), never a bare
+  `Input type="password"` — it's the standard show/hide-toggle wrapper for every password field
+  app-wide (login, register, change-password, etc.).
+- **Use design tokens, not hardcoded colors.** Prefer `text-muted-foreground`, `border-border`,
+  `text-foreground` etc. (defined in `app/globals.css`) over hardcoded Tailwind colors like
+  `text-zinc-500` — the codebase had drifted into mixing both; new/touched code should use tokens.
+- **Auth-screen structure**: `CardTitle` + a one-line `CardDescription` explaining the action,
+  full-width submit button (default `Button`, no `w-fit`). In-page forms (profile, settings)
+  instead use `className="w-fit"` on their submit button — full-width there would look oversized
+  next to a left-aligned card.
+
+## Testing Philosophy
+
+- Primary testing method: **Manual testing** through the browser.
+- The developer will manually check the web interface, user flows, and visual appearance.
+- Do not use Claude Chrome Extension or any browser automation tools for regular development and testing unless explicitly requested.
+- Automated tests (if any) will be added later for critical paths and regression.
+
+**Manual Testing Goals:**
+
+- Evaluate real User Experience (UX)
+- Check visual layout and responsiveness
+- Verify business workflows and usability
+- Catch issues that automated tools often miss
+
+**Before marking a feature as "Done":**
+
+- Developer must perform manual testing
+- Provide a short **Manual Testing Checklist** for the implemented feature
 
 ## Project Structure (Target)
 

@@ -24,6 +24,9 @@ yarn-error.log*
 # Personal development notes (Russian allowed here only)
 .notes/
 
+# Local-only design reference screenshots (not for version control)
+.claude/.design-samples/
+
 # OS / editor
 .DS_Store
 Thumbs.db
