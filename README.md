@@ -9,10 +9,10 @@ data models and component design.
 
 - Monorepo scaffold (npm workspaces): `apps/api` (Express) + `apps/web` (Next.js)
 - `apps/api`: Express + TypeScript server, Winston logging, `GET /health`
-- PostgreSQL via Docker Compose, Prisma ORM, `User` model (email, password hash, optional
-  first/last name)
+- PostgreSQL via Docker Compose, Prisma ORM, `User` model (email, password hash, optional name)
 - JWT auth: `POST /auth/register`, `POST /auth/login`, `GET /auth/me`
-- Profile management: `PATCH /users/me` (name), `PATCH /users/me/password`
+- Profile management: `PATCH /users/me` (name + email, requires current password),
+  `PATCH /users/me/password`
 - `apps/web`: Next.js (App Router, TypeScript, Tailwind), Feature-Sliced Design layers
   (`entities/session`, `entities/user`, `features/auth`, `features/profile`,
   `widgets/sidebar`, `widgets/dashboard`, `widgets/profile`) — login/register pages, a
@@ -31,6 +31,15 @@ npm install                # installs both apps/api and apps/web
 npm run dev:api             # apps/api  → http://localhost:4000  (GET /health)
 npm run dev:web             # apps/web  → http://localhost:3000
 ```
+
+`npm install` here is the plain npm command, not a script we defined — there's no `install` entry
+in `package.json` `scripts`. It behaves this way because of the root `package.json`'s
+`"workspaces": ["apps/*"]` field: npm reads `apps/api/package.json` and `apps/web/package.json`
+alongside the root one and installs everything into a single root `node_modules` (with the two
+apps symlinked in), so one `npm install` at the repo root covers both apps — no need to `cd` into
+each and install separately. `dev:api`/`dev:web`/`build`/`lint`, by contrast, *are* our own scripts
+(see `package.json` → `scripts`), each delegating to the matching command inside that workspace via
+`npm run <script> --workspace <path>`.
 
 Each app also has its own `.env` (see `apps/api/.env.example` and `apps/web/.env.example`); copy
 each to `.env` (`apps/web` uses `.env.local`) before running. `apps/api` needs `DATABASE_URL`
