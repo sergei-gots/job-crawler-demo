@@ -50,6 +50,11 @@ Given a 2-week timeline, MVP scope is **one source, done well**, rather than thr
 `moikrug` and `craigslist` are deferred — add them later as additional `CrawlStrategy` adapters if
 time allows, without changing the crawler architecture.
 
+All three are already seeded as `CrawlSource` rows (`apps/api/prisma/seed.ts`) so they're
+selectable from the Sources/Jobs UI, but no `CrawlStrategy` reads them yet — Increment 1's
+`POST /jobs/:id/start` runs a **mock in-process runner** (see `apps/api/src/jobs/jobs.runner.ts`
+and `.claude/features/FEATIRE_SOURCES_AND_JOBS.md`), not a real crawl of any source.
+
 For the active source we define: `usePuppeteer` (true/false), base URL(s), and the CSS selectors /
 fields to parse. Always respect the site's `robots.txt` and apply rate limiting.
 
