@@ -3,6 +3,8 @@ import cors from "cors";
 import express from "express";
 import { authRouter } from "./auth/auth.routes.js";
 import { logger } from "./config/logger.js";
+import { jobsRouter } from "./jobs/jobs.routes.js";
+import { sourcesRouter } from "./sources/sources.routes.js";
 import { usersRouter } from "./users/users.routes.js";
 
 const app = express();
@@ -17,6 +19,8 @@ app.get("/health", (_req, res) => {
 
 app.use("/auth", authRouter);
 app.use("/users", usersRouter);
+app.use("/sources", sourcesRouter);
+app.use("/jobs", jobsRouter);
 
 app.listen(port, () => {
   logger.info(`API listening on http://localhost:${port}`);

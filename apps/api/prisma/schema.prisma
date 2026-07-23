@@ -15,5 +15,70 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  jobs CrawlerJob[]
+
   @@map("users")
+}
+
+model CrawlSource {
+  id               Int        @id @default(autoincrement())
+  name             String     @unique
+  baseUrl          String
+  type             SourceType
+  isActive         Boolean    @default(true)
+  respectRobotsTxt Boolean    @default(true)
+  defaultDelayMs   Int        @default(2000)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@map("crawl_sources")
+}
+
+enum SourceType {
+  STATIC
+  DYNAMIC
+}
+
+model CrawlerJob {
+  id          Int       @id @default(autoincrement())
+  userId      String
+  name        String
+  description String?
+  sources     Json
+  keywords    String?
+  config      Json
+  status      JobStatus @default(PENDING)
+  lastRunAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logs JobLog[]
+
+  @@map("crawler_jobs")
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model JobLog {
+  id        Int      @id @default(autoincrement())
+  jobId     Int
+  level     LogLevel @default(INFO)
+  message   String
+  createdAt DateTime @default(now())
+
+  job CrawlerJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@map("job_logs")
+}
+
+enum LogLevel {
+  INFO
+  WARN
+  ERROR
 }
