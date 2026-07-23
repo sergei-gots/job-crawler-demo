@@ -12,6 +12,8 @@ import { Card, CardContent } from "@/shared/ui/card";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/sources", label: "Sources" },
+  { href: "/jobs", label: "Jobs" },
   { href: "/profile", label: "Profile" },
 ];
 
@@ -45,7 +47,7 @@ export function Sidebar() {
         <CardContent>
           <nav className="flex flex-col gap-1">
             {NAV_ITEMS.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
                 <Link
                   key={item.href}

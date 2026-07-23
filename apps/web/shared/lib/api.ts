@@ -18,10 +18,13 @@ async function parseResponse<T>(res: Response): Promise<T> {
   return data as T;
 }
 
-export async function postJson<T>(path: string, body: unknown): Promise<T> {
+export async function postJson<T>(path: string, body: unknown, token?: string): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify(body),
   });
   return parseResponse<T>(res);
