@@ -51,18 +51,29 @@ async function getOwnedJobOrThrow(userId: string, id: number): Promise<CrawlerJo
 export async function startJob(userId: string, id: number): Promise<CrawlerJob> {
   const job = await getOwnedJobOrThrow(userId, id);
 
+  if (job.status === "RUNNING") {
+    throw new ApiError(400, "Job is already running");
+  }
+
   const sourceIds = job.sources as number[];
   const sources = await prisma.crawlSource.findMany({ where: { id: { in: sourceIds } } });
   const sourceNames = sources.map((source) => source.name);
 
-  const updated = await prisma.crawlerJob.update({
-    where: { id },
+  // Guard the transition with a status-conditioned update, not just the read above: two
+  // concurrent start requests (e.g. two tabs) would otherwise both pass the check and both
+  // wipe/restart the run. Only the request that actually flips PENDING/COMPLETED/etc. -> RUNNING
+  // proceeds to (re)start the mock run.
+  const { count } = await prisma.crawlerJob.updateMany({
+    where: { id, status: { not: "RUNNING" } },
     data: { status: "RUNNING", lastRunAt: new Date() },
   });
+  if (count === 0) {
+    throw new ApiError(400, "Job is already running");
+  }
 
   await startMockRun(id, sourceNames);
 
-  return updated;
+  return prisma.crawlerJob.findUniqueOrThrow({ where: { id } });
 }
 
 export async function stopJob(userId: string, id: number): Promise<CrawlerJob> {
@@ -73,7 +84,19 @@ export async function stopJob(userId: string, id: number): Promise<CrawlerJob> {
   }
 
   stopMockRun(id);
+
+  // Same status-conditioned update as startJob: if the mock run's finish timer already flipped
+  // the job to COMPLETED between the read above and here, this affects 0 rows and we report
+  // "not running" instead of overwriting a completed job with STOPPED.
+  const { count } = await prisma.crawlerJob.updateMany({
+    where: { id, status: "RUNNING" },
+    data: { status: "STOPPED" },
+  });
+  if (count === 0) {
+    throw new ApiError(400, "Job is not running");
+  }
+
   await prisma.jobLog.create({ data: { jobId: id, message: "Stopped by user" } });
 
-  return prisma.crawlerJob.update({ where: { id }, data: { status: "STOPPED" } });
+  return prisma.crawlerJob.findUniqueOrThrow({ where: { id } });
 }

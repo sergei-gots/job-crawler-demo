@@ -47,7 +47,11 @@ export function JobDetailPage({ jobId }: { jobId: number }) {
     try {
       await startJob(jobId, token);
       loadJob();
-    } catch {
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        handleUnauthorized();
+        return;
+      }
       setError("Failed to start job");
     } finally {
       setActionPending(false);
@@ -60,7 +64,11 @@ export function JobDetailPage({ jobId }: { jobId: number }) {
     try {
       await stopJob(jobId, token);
       loadJob();
-    } catch {
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        handleUnauthorized();
+        return;
+      }
       setError("Failed to stop job");
     } finally {
       setActionPending(false);

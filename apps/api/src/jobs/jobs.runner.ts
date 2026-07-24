@@ -35,11 +35,24 @@ export async function startMockRun(jobId: number, sourceNames: string[]): Promis
 
   const finishTimer = setTimeout(
     () => {
-      prisma.jobLog
-        .create({ data: { jobId, message: "Job completed" } })
-        .then(() => prisma.crawlerJob.update({ where: { id: jobId }, data: { status: "COMPLETED" } }))
-        .catch((error: unknown) => logger.error(`Failed to finish mock job run: ${String(error)}`))
-        .finally(() => activeTimers.delete(jobId));
+      void (async () => {
+        try {
+          // Status-conditioned update, mirroring stopJob's own conditioned write: if the job was
+          // already stopped by the user before this timer fired, this affects 0 rows and we skip
+          // appending a "Job completed" log that would contradict the STOPPED status.
+          const { count } = await prisma.crawlerJob.updateMany({
+            where: { id: jobId, status: "RUNNING" },
+            data: { status: "COMPLETED" },
+          });
+          if (count > 0) {
+            await prisma.jobLog.create({ data: { jobId, message: "Job completed" } });
+          }
+        } catch (error) {
+          logger.error(`Failed to finish mock job run: ${String(error)}`);
+        } finally {
+          activeTimers.delete(jobId);
+        }
+      })();
     },
     (step += 1) * stepMs,
   );
