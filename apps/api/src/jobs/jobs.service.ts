@@ -75,5 +75,5 @@ export async function stopJob(userId: string, id: number): Promise<CrawlerJob> {
   stopMockRun(id);
   await prisma.jobLog.create({ data: { jobId: id, message: "Stopped by user" } });
 
-  return prisma.crawlerJob.update({ where: { id }, data: { status: "FAILED" } });
+  return prisma.crawlerJob.update({ where: { id }, data: { status: "STOPPED" } });
 }

@@ -1,4 +1,4 @@
-export type JobStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+export type JobStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "STOPPED";
 
 export interface JobConfig {
   delayMs?: number;

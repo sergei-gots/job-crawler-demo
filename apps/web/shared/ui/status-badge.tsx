@@ -5,6 +5,7 @@ const STATUS_STYLES: Record<string, string> = {
   RUNNING: "border-border text-foreground",
   COMPLETED: "border-border text-foreground",
   FAILED: "border-destructive text-destructive",
+  STOPPED: "border-border text-muted-foreground",
 };
 
 export function StatusBadge({ status }: { status: string }) {

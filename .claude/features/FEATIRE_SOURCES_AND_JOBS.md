@@ -71,6 +71,7 @@ enum JobStatus {
   RUNNING
   COMPLETED
   FAILED
+  STOPPED   // set by POST /jobs/:id/stop — distinct from FAILED (a real crawl error)
 }
 
 model JobLog {

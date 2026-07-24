@@ -45,7 +45,7 @@
    - passes each through the **AIEnricher** (mock → real Claude) for summary/skills/category,
    - indexes the enriched result into **Elasticsearch**,
    - writes progress + **JobLog** lines to PostgreSQL.
-4. Job finishes → status → `COMPLETED` (or `FAILED` if stopped/errored).
+4. Job finishes → status → `COMPLETED` (or `FAILED` if it errored, `STOPPED` if the user stopped it).
 5. User searches results via the **Coveo-like layer** (facets + relevance) over Elasticsearch.
 
 ## Storage responsibilities
@@ -91,7 +91,7 @@
 | sources       | jsonb (`number[]`)       | selected `CrawlSource.id`s                         |
 | keywords      | string \| null           | free-text filter                                   |
 | config        | jsonb                    | `{ delayMs?, maxDepth?, usePuppeteer? }`           |
-| status        | enum                     | `PENDING`,`RUNNING`,`COMPLETED`,`FAILED`           |
+| status        | enum                     | `PENDING`,`RUNNING`,`COMPLETED`,`FAILED`,`STOPPED` |
 | lastRunAt     | timestamp \| null        |                                                     |
 | createdAt     | timestamp                |                                                     |
 | updatedAt     | timestamp                |                                                     |
