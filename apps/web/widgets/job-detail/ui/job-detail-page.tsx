@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { startJob, stopJob } from "@/features/run-job";
+import { useJobActions } from "@/features/run-job";
 import { useRequireAuth } from "@/entities/session";
-import { getJob, type JobWithLogs } from "@/entities/job";
+import { getJob, type Job, type JobWithLogs } from "@/entities/job";
 import { ApiError } from "@/shared/lib/api";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
@@ -15,23 +15,24 @@ const POLL_INTERVAL_MS = 2000;
 export function JobDetailPage({ jobId }: { jobId: number }) {
   const { token, handleUnauthorized } = useRequireAuth();
   const [job, setJob] = useState<JobWithLogs | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [actionPending, setActionPending] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const loadJob = useCallback(() => {
+  const loadJob = useCallback(async () => {
     if (!token) return;
-    getJob(jobId, token)
-      .then(setJob)
-      .catch((err) => {
-        if (err instanceof ApiError && err.status === 401) {
-          handleUnauthorized();
-          return;
-        }
-        setError("Failed to load job");
-      });
+    try {
+      const result = await getJob(jobId, token);
+      setJob(result);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      setLoadError("Failed to load job");
+    }
   }, [token, jobId, handleUnauthorized]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount, matches entities/session/lib/use-require-auth.ts
     loadJob();
   }, [loadJob]);
 
@@ -41,39 +42,23 @@ export function JobDetailPage({ jobId }: { jobId: number }) {
     return () => clearInterval(interval);
   }, [job?.status, loadJob]);
 
-  async function handleStart() {
-    if (!token) return;
-    setActionPending(true);
-    try {
-      await startJob(jobId, token);
-      loadJob();
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        handleUnauthorized();
-        return;
-      }
-      setError("Failed to start job");
-    } finally {
-      setActionPending(false);
-    }
-  }
+  const applyStarted = useCallback((updated: Job) => {
+    // The server clears JobLog history when a run (re)starts; reflect that immediately instead
+    // of waiting for the next poll. Subsequent log lines arrive via the RUNNING poll above.
+    setJob((prev) => (prev ? { ...prev, ...updated, logs: [] } : prev));
+  }, []);
 
-  async function handleStop() {
-    if (!token) return;
-    setActionPending(true);
-    try {
-      await stopJob(jobId, token);
-      loadJob();
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        handleUnauthorized();
-        return;
-      }
-      setError("Failed to stop job");
-    } finally {
-      setActionPending(false);
-    }
-  }
+  const { start, stop, pendingId, error: actionError } = useJobActions({
+    token,
+    handleUnauthorized,
+    onStarted: applyStarted,
+    // Stopping leaves RUNNING, so the poll above won't fire again to pick up the final
+    // "Stopped by user" log line — refetch once to show it instead of merging the bare Job.
+    onStopped: () => loadJob(),
+  });
+
+  const actionPending = pendingId === jobId;
+  const error = actionError ?? loadError;
 
   if (!token) return null;
 
@@ -123,7 +108,7 @@ export function JobDetailPage({ jobId }: { jobId: number }) {
                     size="sm"
                     className="w-fit"
                     disabled={actionPending}
-                    onClick={handleStop}
+                    onClick={() => stop(jobId)}
                   >
                     Stop
                   </Button>
@@ -133,7 +118,7 @@ export function JobDetailPage({ jobId }: { jobId: number }) {
                     size="sm"
                     className="w-fit"
                     disabled={actionPending}
-                    onClick={handleStart}
+                    onClick={() => start(jobId)}
                   >
                     Start
                   </Button>

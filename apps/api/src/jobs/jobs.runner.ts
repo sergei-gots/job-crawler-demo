@@ -11,9 +11,13 @@ const activeTimers = new Map<number, NodeJS.Timeout[]>();
 
 function scheduleLog(jobId: number, delayMs: number, message: string, timers: NodeJS.Timeout[]): void {
   const timer = setTimeout(() => {
-    prisma.jobLog
-      .create({ data: { jobId, message } })
-      .catch((error: unknown) => logger.error(`Failed to write job log: ${String(error)}`));
+    void (async () => {
+      try {
+        await prisma.jobLog.create({ data: { jobId, message } });
+      } catch (error) {
+        logger.error(`Failed to write job log: ${String(error)}`);
+      }
+    })();
   }, delayMs);
   timers.push(timer);
 }

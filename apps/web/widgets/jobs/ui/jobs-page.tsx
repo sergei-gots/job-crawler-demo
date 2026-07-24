@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { CreateJobForm } from "@/features/create-crawler-job";
-import { startJob, stopJob } from "@/features/run-job";
+import { useJobActions } from "@/features/run-job";
 import { useRequireAuth } from "@/entities/session";
 import { getJobs, type Job } from "@/entities/job";
 import { getSources, type Source } from "@/entities/source";
@@ -16,8 +16,7 @@ export function JobsPage() {
   const { token, handleUnauthorized } = useRequireAuth();
   const [jobs, setJobs] = useState<Job[] | null>(null);
   const [sources, setSources] = useState<Source[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [pendingActionId, setPendingActionId] = useState<number | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const handleAuthError = useCallback(
     (err: unknown, fallbackMessage: string) => {
@@ -25,51 +24,47 @@ export function JobsPage() {
         handleUnauthorized();
         return;
       }
-      setError(fallbackMessage);
+      setLoadError(fallbackMessage);
     },
     [handleUnauthorized],
   );
 
-  const loadJobs = useCallback(() => {
+  const loadJobs = useCallback(async () => {
     if (!token) return;
-    getJobs(token)
-      .then(setJobs)
-      .catch((err) => handleAuthError(err, "Failed to load jobs"));
+    try {
+      const result = await getJobs(token);
+      setJobs(result);
+    } catch (err) {
+      handleAuthError(err, "Failed to load jobs");
+    }
   }, [token, handleAuthError]);
 
   useEffect(() => {
     if (!token) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount, matches entities/session/lib/use-require-auth.ts
     loadJobs();
-    getSources(token)
-      .then(setSources)
-      .catch((err) => handleAuthError(err, "Failed to load sources"));
+    (async () => {
+      try {
+        const result = await getSources(token);
+        setSources(result);
+      } catch (err) {
+        handleAuthError(err, "Failed to load sources");
+      }
+    })();
   }, [token, loadJobs, handleAuthError]);
 
-  async function handleStart(id: number) {
-    if (!token) return;
-    setPendingActionId(id);
-    try {
-      await startJob(id, token);
-      loadJobs();
-    } catch (err) {
-      handleAuthError(err, "Failed to start job");
-    } finally {
-      setPendingActionId(null);
-    }
-  }
+  const patchJob = useCallback((updated: Job) => {
+    setJobs((prev) => (prev ? prev.map((job) => (job.id === updated.id ? updated : job)) : prev));
+  }, []);
 
-  async function handleStop(id: number) {
-    if (!token) return;
-    setPendingActionId(id);
-    try {
-      await stopJob(id, token);
-      loadJobs();
-    } catch (err) {
-      handleAuthError(err, "Failed to stop job");
-    } finally {
-      setPendingActionId(null);
-    }
-  }
+  const { start, stop, pendingId, error: actionError } = useJobActions({
+    token,
+    handleUnauthorized,
+    onStarted: patchJob,
+    onStopped: patchJob,
+  });
+
+  const error = actionError ?? loadError;
 
   if (!token) return null;
 
@@ -109,8 +104,8 @@ export function JobsPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled={pendingActionId === job.id}
-                          onClick={() => handleStop(job.id)}
+                          disabled={pendingId === job.id}
+                          onClick={() => stop(job.id)}
                         >
                           Stop
                         </Button>
@@ -118,8 +113,8 @@ export function JobsPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled={pendingActionId === job.id}
-                          onClick={() => handleStart(job.id)}
+                          disabled={pendingId === job.id}
+                          onClick={() => start(job.id)}
                         >
                           Start
                         </Button>

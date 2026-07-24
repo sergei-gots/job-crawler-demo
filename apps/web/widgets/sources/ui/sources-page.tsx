@@ -17,15 +17,22 @@ export function SourcesPage() {
 
   useEffect(() => {
     if (!token) return;
-    getSources(token)
-      .then(setSources)
-      .catch((err) => {
+    const authToken = token;
+
+    async function load() {
+      try {
+        const result = await getSources(authToken);
+        setSources(result);
+      } catch (err) {
         if (err instanceof ApiError && err.status === 401) {
           handleUnauthorized();
           return;
         }
         setError("Failed to load sources");
-      });
+      }
+    }
+
+    load();
   }, [token, handleUnauthorized]);
 
   if (!token) return null;
