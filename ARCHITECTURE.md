@@ -29,16 +29,24 @@
 
 ## Data flow (one crawler job)
 
-1. User creates a **CrawlerJob** (name, sources, keywords, config) → stored in PostgreSQL.
-2. User starts the job → a task is enqueued in **Redis**; status → `queued`.
-3. A **worker** picks it up (status → `running`), and for each selected source:
-   - checks `robots.txt` and applies **Redis** rate limiting,
-   - fetches pages with **Axios/Cheerio** (or **Puppeteer** if `usePuppeteer`),
+> **Increment 1 status:** steps 1–2 and 4 below are implemented. Step 3 (the actual crawl) is
+> currently a **mock in-process runner** (`apps/api/src/jobs/jobs.runner.ts`) that writes timed
+> `JobLog` rows and flips the job status — no real Redis queue, `robots.txt` check,
+> Axios/Cheerio/Puppeteer fetch, AI enrichment, or Elasticsearch indexing yet. Step 5 (search) is
+> not implemented. This section describes the target end-state; see `.claude/features/
+> FEATIRE_SOURCES_AND_JOBS.md` for what's real today.
+
+1. User creates a **CrawlerJob** (name, sources, keywords) → stored in PostgreSQL.
+2. User starts the job → a task is enqueued in **Redis**; status → `RUNNING`.
+3. A **worker** picks it up, and for each selected source:
+   - checks `robots.txt` and applies **Redis** rate limiting (using that `CrawlSource`'s own
+     `defaultDelayMs` — crawl strategy and pacing are per-source, not configurable per job),
+   - fetches pages with **Axios/Cheerio** (or **Puppeteer**, depending on that source's `type`),
    - parses postings into raw **CrawlerResult** objects,
    - passes each through the **AIEnricher** (mock → real Claude) for summary/skills/category,
    - indexes the enriched result into **Elasticsearch**,
    - writes progress + **JobLog** lines to PostgreSQL.
-4. Job finishes → status → `completed` (or `stopped` / `failed`).
+4. Job finishes → status → `COMPLETED` (or `FAILED` if it errored, `STOPPED` if the user stopped it).
 5. User searches results via the **Coveo-like layer** (facets + relevance) over Elasticsearch.
 
 ## Storage responsibilities
@@ -61,20 +69,32 @@
 | createdAt     | timestamp       |                                                           |
 | updatedAt     | timestamp       |                                                           |
 
+### CrawlSource (PostgreSQL)
+| Field            | Type          | Notes                                              |
+|------------------|---------------|-----------------------------------------------------|
+| id               | int (PK)      | autoincrement                                      |
+| name             | string        | unique; seeded, not user-editable in Increment 1   |
+| baseUrl          | string        |                                                     |
+| type             | enum          | `STATIC` (Axios/Cheerio) \| `DYNAMIC` (Puppeteer)  |
+| isActive         | boolean       | default `true`                                     |
+| respectRobotsTxt | boolean       | default `true` (not yet enforced by the mock runner) |
+| defaultDelayMs   | int           | default `2000`                                     |
+| createdAt        | timestamp     |                                                     |
+| updatedAt        | timestamp     |                                                     |
+
 ### CrawlerJob (PostgreSQL)
-| Field         | Type                | Notes                                             |
-|---------------|---------------------|---------------------------------------------------|
-| id            | uuid (PK)           |                                                   |
-| userId        | uuid (FK → User)    | ownership                                         |
-| name          | string              |                                                   |
-| sources       | string[]            | source keys, e.g. `['habr_career','craigslist']`  |
-| keywords      | string[]            | search terms / filters                            |
-| config        | jsonb               | `{ delayMs, maxDepth, usePuppeteer }`             |
-| status        | enum                | `created`,`queued`,`running`,`completed`,`stopped`,`failed` |
-| progress      | jsonb               | `{ processed, total, percent }`                   |
-| createdAt     | timestamp           |                                                   |
-| startedAt     | timestamp \| null   |                                                   |
-| finishedAt    | timestamp \| null   |                                                   |
+| Field         | Type                     | Notes                                             |
+|---------------|--------------------------|----------------------------------------------------|
+| id            | int (PK)                 | autoincrement                                      |
+| userId        | uuid (FK → User.id)      | ownership                                          |
+| name          | string                   |                                                     |
+| description   | string \| null           |                                                     |
+| sources       | jsonb (`number[]`)       | selected `CrawlSource.id`s                         |
+| keywords      | string \| null           | free-text filter                                   |
+| status        | enum                     | `PENDING`,`RUNNING`,`COMPLETED`,`FAILED`,`STOPPED` |
+| lastRunAt     | timestamp \| null        |                                                     |
+| createdAt     | timestamp                |                                                     |
+| updatedAt     | timestamp                |                                                     |
 
 ### CrawlerResult (Elasticsearch)
 | Field          | Type        | Notes                                    |
@@ -98,20 +118,19 @@
 > on `skills`, `location`, `company`, and (later) normalized salary.
 
 ### JobLog (PostgreSQL)
-| Field      | Type              | Notes                        |
-|------------|-------------------|------------------------------|
-| id         | uuid (PK)         |                              |
-| jobId      | uuid (FK → Job)   |                              |
-| userId     | uuid              | for quick ownership checks   |
-| level      | enum              | `info`,`warn`,`error`        |
-| message    | string            |                              |
-| meta       | jsonb \| null     | structured context           |
-| timestamp  | timestamp         |                              |
+| Field      | Type                  | Notes                            |
+|------------|-----------------------|-----------------------------------|
+| id         | int (PK)              | autoincrement                    |
+| jobId      | int (FK → CrawlerJob.id) | ownership checked via the job's `userId` |
+| level      | enum                  | `INFO`,`WARN`,`ERROR`            |
+| message    | string                |                                   |
+| createdAt  | timestamp             |                                   |
 
 ## Key interfaces (to keep things swappable)
 
 - **`CrawlStrategy`** — `crawl(source, job): Promise<RawResult[]>`; implementations:
-  `AxiosCheerioStrategy`, `PuppeteerStrategy`. Chosen per job via `usePuppeteer`.
+  `AxiosCheerioStrategy`, `PuppeteerStrategy`. Chosen per source via `CrawlSource.type`
+  (`STATIC` → Axios/Cheerio, `DYNAMIC` → Puppeteer) — not configurable per job.
 - **`AIEnricher`** — `enrich(raw): Promise<Enrichment>`; implementations:
   `MockAIEnricher` (now), `ClaudeEnricher` (later). Swapped via config/env.
 - **`SearchService`** (Coveo-like) — `search(query, facets, sort): Promise<SearchResponse>`

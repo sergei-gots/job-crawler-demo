@@ -50,6 +50,11 @@ Given a 2-week timeline, MVP scope is **one source, done well**, rather than thr
 `moikrug` and `craigslist` are deferred — add them later as additional `CrawlStrategy` adapters if
 time allows, without changing the crawler architecture.
 
+All three are already seeded as `CrawlSource` rows (`apps/api/prisma/seed.ts`) so they're
+selectable from the Sources/Jobs UI, but no `CrawlStrategy` reads them yet — Increment 1's
+`POST /jobs/:id/start` runs a **mock in-process runner** (see `apps/api/src/jobs/jobs.runner.ts`
+and `.claude/features/FEATIRE_SOURCES_AND_JOBS.md`), not a real crawl of any source.
+
 For the active source we define: `usePuppeteer` (true/false), base URL(s), and the CSS selectors /
 fields to parse. Always respect the site's `robots.txt` and apply rate limiting.
 
@@ -82,7 +87,10 @@ fields to parse. Always respect the site's `robots.txt` and apply rate limiting.
 - Claude drafts the commit message(s) and the pull request description for each step of work,
   in the usual format: a summary of what changed and why, plus a test plan / checklist of what
   still needs manual review or testing (e.g. "not yet covered by automated tests — verify
-  manually: ..."). The user reviews and creates the actual PR.
+  manually: ..."). By default the user reviews the draft and creates the actual PR themselves.
+  Claude may open the PR itself via `gh pr create` **only when explicitly asked** to do so in that
+  moment (e.g. "create the PR", "open it via the link") — this is not a standing default, so ask
+  again next time rather than assuming carryover. This does not change the merge rule below.
 - **No automatic merges, ever.** Every change lands on a feature branch and goes through a PR;
   `main` only moves when the user reviews and merges it themselves. Claude never merges a PR,
   even if asked to "just finish it up" — merging is always a manual, explicit user action.
@@ -181,6 +189,39 @@ requires them.
   full-width submit button (default `Button`, no `w-fit`). In-page forms (profile, settings)
   instead use `className="w-fit"` on their submit button — full-width there would look oversized
   next to a left-aligned card.
+- **Typography hierarchy** — three levels, distinguished by size *and* weight together (not just a
+  couple of pixels at the same weight), so page structure stays scannable at a glance:
+  | Level | Component | Classes | Size / weight |
+  | --- | --- | --- | --- |
+  | Page title | `shared/ui/page-title.tsx`'s `PageTitle` (one `<h1>` per page) | `text-2xl font-semibold tracking-tight` | 24px / 600 |
+  | Section heading | `shared/ui/card.tsx`'s `CardTitle` | `text-lg font-semibold` (`text-base font-semibold` in `size="sm"` cards) | 18px / 600 (16px / 600) |
+  | Form label | `shared/ui/label.tsx`'s `Label` | `text-sm font-medium` | 14px / 500 |
+
+  Always use `PageTitle` for a page's single top-level heading instead of a raw `<h1>` — it's the
+  shared definition all pages inherit from, so a future hierarchy tweak stays a one-file change.
+- **Button color hierarchy** — two levels, distinguished by fill, not by inventing new variants:
+  | Level | Variant | Look | Used for |
+  | --- | --- | --- | --- |
+  | Primary action | `variant="default"` (`shared/ui/button.tsx`) | Medium-dark gray fill (`--primary: oklch(0.55 0 0)`), light text — deliberately *not* near-black | Main CTA per screen: Login, Register, Create job, Update profile |
+  | Secondary action | `variant="secondary"` | Clearly gray fill (`--secondary: oklch(0.9 0 0)`), dark text — must read as visibly gray against a white `Card`, not blend into it | In-context actions on an existing item: Start / Stop a job |
+
+  Both colors are tokens in `app/globals.css` (`:root` block, light theme) — tune brightness there,
+  not per-component. `--primary` went through several rounds of manual eyeballing (`0.205` too
+  black → `0.32`/`0.42` still too dark → `0.55` approved); `--secondary` needed bumping from `0.97`
+  (indistinguishable from the white `Card` background) to `0.9`. Do not reintroduce hardcoded
+  Tailwind grays (`bg-zinc-600`, etc.) for buttons — extend these tokens instead.
+- **Headings get their own (lighter) text color, body text doesn't.** `PageTitle` and `CardTitle`
+  use a dedicated `--heading` token (`oklch(0.45 0 0)` light theme, ≈ Tailwind `zinc-600`) via the
+  `text-heading` utility, deliberately lighter than `--foreground` (`0.145`, near-black) so titles
+  read as less heavy. Regular text (labels, paragraphs, table cells) keeps using `--foreground` /
+  `text-foreground` as before — do not point body text at `--heading`, and do not lighten
+  `--foreground` itself to chase this look, since that token drives all default text app-wide and
+  a jump to anything near `0.85` drops contrast on white to ~1.2:1 (fails WCAG, effectively
+  invisible). `--heading` is intentionally left unchanged in the dark theme (same as dark
+  `--foreground`) since the "too heavy" complaint was about the light theme only.
+- **`Card` uses a real border, not a faint ring.** `border-2 border-border` (token `--border:
+  oklch(0.85 0 0)` in light theme) — bumped up from the original near-invisible `ring-1
+  ring-foreground/10` so cards visibly separate from the page background and from each other.
 
 ## Testing Philosophy
 

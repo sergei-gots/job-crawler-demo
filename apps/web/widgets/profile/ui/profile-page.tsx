@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRequireAuth } from "@/entities/session";
-import { getCurrentUser, type CurrentUser } from "@/entities/user";
+import { getCurrentUser, setCachedUser, type CurrentUser } from "@/entities/user";
 import { ChangePasswordForm, UpdateProfileForm } from "@/features/profile";
 import { ApiError } from "@/shared/lib/api";
+import { PageTitle } from "@/shared/ui/page-title";
 
 export function ProfilePage() {
   const { token, handleUnauthorized } = useRequireAuth();
@@ -14,7 +15,10 @@ export function ProfilePage() {
   const loadUser = useCallback(() => {
     if (!token) return;
     getCurrentUser(token)
-      .then(setUser)
+      .then((result) => {
+        setUser(result);
+        setCachedUser(result);
+      })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) {
           handleUnauthorized();
@@ -33,11 +37,18 @@ export function ProfilePage() {
   return (
     <main className="flex flex-1 justify-start p-4 md:p-8">
       <div className="flex w-full max-w-lg flex-col gap-6">
-        <h1 className="text-2xl font-semibold">Profile</h1>
+        <PageTitle>Profile</PageTitle>
         {error && <p className="text-sm text-red-500">{error}</p>}
         {user ? (
           <>
-            <UpdateProfileForm user={user} token={token} onUpdated={setUser} />
+            <UpdateProfileForm
+              user={user}
+              token={token}
+              onUpdated={(updated) => {
+                setUser(updated);
+                setCachedUser(updated);
+              }}
+            />
             <ChangePasswordForm token={token} />
           </>
         ) : (

@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { clearToken, useRequireAuth } from "@/entities/session";
-import { getCurrentUser, type CurrentUser } from "@/entities/user";
+import { getCachedUser, getCurrentUser, setCachedUser, subscribeUser } from "@/entities/user";
 import { ApiError } from "@/shared/lib/api";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
@@ -12,18 +12,24 @@ import { Card, CardContent } from "@/shared/ui/card";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/sources", label: "Sources" },
+  { href: "/jobs", label: "Jobs" },
   { href: "/profile", label: "Profile" },
 ];
 
 export function Sidebar() {
   const { token, handleUnauthorized } = useRequireAuth();
   const pathname = usePathname();
-  const [user, setUser] = useState<CurrentUser | null>(null);
+  const user = useSyncExternalStore(
+    subscribeUser,
+    getCachedUser,
+    () => null,
+  );
 
   useEffect(() => {
     if (!token) return;
     getCurrentUser(token)
-      .then(setUser)
+      .then(setCachedUser)
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) {
           handleUnauthorized();
@@ -36,16 +42,22 @@ export function Sidebar() {
   return (
     <aside className="flex w-full flex-col gap-4 border-b p-4 md:w-56 md:border-b-0 md:border-r">
       <Card size="sm">
-        <CardContent className="flex flex-col gap-0.5">
-          <p className="text-sm font-medium">{displayName ?? "Loading..."}</p>
-          {user && <p className="text-sm text-muted-foreground">{user.email}</p>}
+        <CardContent className="flex min-w-0 flex-col gap-0.5">
+          <p className="truncate text-sm font-medium" title={displayName ?? undefined}>
+            {displayName ?? "Loading..."}
+          </p>
+          {user && (
+            <p className="truncate text-sm text-muted-foreground" title={user.email}>
+              {user.email}
+            </p>
+          )}
         </CardContent>
       </Card>
       <Card size="sm">
         <CardContent>
           <nav className="flex flex-col gap-1">
             {NAV_ITEMS.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
                 <Link
                   key={item.href}
@@ -70,6 +82,7 @@ export function Sidebar() {
         className="mt-auto"
         onClick={() => {
           clearToken();
+          setCachedUser(null);
           window.location.href = "/login";
         }}
       >
