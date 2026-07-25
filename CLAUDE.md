@@ -87,7 +87,10 @@ fields to parse. Always respect the site's `robots.txt` and apply rate limiting.
 - Claude drafts the commit message(s) and the pull request description for each step of work,
   in the usual format: a summary of what changed and why, plus a test plan / checklist of what
   still needs manual review or testing (e.g. "not yet covered by automated tests — verify
-  manually: ..."). The user reviews and creates the actual PR.
+  manually: ..."). By default the user reviews the draft and creates the actual PR themselves.
+  Claude may open the PR itself via `gh pr create` **only when explicitly asked** to do so in that
+  moment (e.g. "create the PR", "open it via the link") — this is not a standing default, so ask
+  again next time rather than assuming carryover. This does not change the merge rule below.
 - **No automatic merges, ever.** Every change lands on a feature branch and goes through a PR;
   `main` only moves when the user reviews and merges it themselves. Claude never merges a PR,
   even if asked to "just finish it up" — merging is always a manual, explicit user action.
