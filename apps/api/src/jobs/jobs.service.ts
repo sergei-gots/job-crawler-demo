@@ -35,7 +35,6 @@ export async function createJob(userId: string, input: CreateJobInput): Promise<
       description: input.description,
       sources: input.sources,
       keywords: input.keywords,
-      config: input.config,
     },
   });
 }
@@ -57,7 +56,6 @@ export async function startJob(userId: string, id: number): Promise<CrawlerJob> 
 
   const sourceIds = job.sources as number[];
   const sources = await prisma.crawlSource.findMany({ where: { id: { in: sourceIds } } });
-  const sourceNames = sources.map((source) => source.name);
 
   // Guard the transition with a status-conditioned update, not just the read above: two
   // concurrent start requests (e.g. two tabs) would otherwise both pass the check and both
@@ -71,7 +69,7 @@ export async function startJob(userId: string, id: number): Promise<CrawlerJob> 
     throw new ApiError(400, "Job is already running");
   }
 
-  await startMockRun(id, sourceNames);
+  await startMockRun(id, sources);
 
   return prisma.crawlerJob.findUniqueOrThrow({ where: { id } });
 }

@@ -2,7 +2,7 @@
 CREATE TYPE "SourceType" AS ENUM ('STATIC', 'DYNAMIC');
 
 -- CreateEnum
-CREATE TYPE "JobStatus" AS ENUM ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED');
+CREATE TYPE "JobStatus" AS ENUM ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'STOPPED');
 
 -- CreateEnum
 CREATE TYPE "LogLevel" AS ENUM ('INFO', 'WARN', 'ERROR');
@@ -30,7 +30,6 @@ CREATE TABLE "crawler_jobs" (
     "description" TEXT,
     "sources" JSONB NOT NULL,
     "keywords" TEXT,
-    "config" JSONB NOT NULL,
     "status" "JobStatus" NOT NULL DEFAULT 'PENDING',
     "lastRunAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

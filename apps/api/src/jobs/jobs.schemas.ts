@@ -5,11 +5,6 @@ export const createJobSchema = z.object({
   description: z.string().optional(),
   sources: z.array(z.number().int()).min(1, "Select at least one source"),
   keywords: z.string().optional(),
-  config: z.object({
-    delayMs: z.number().int().min(0).optional(),
-    maxDepth: z.number().int().min(1).optional(),
-    usePuppeteer: z.boolean().optional(),
-  }),
 });
 
 export type CreateJobInput = z.infer<typeof createJobSchema>;

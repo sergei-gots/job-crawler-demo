@@ -46,7 +46,6 @@ model CrawlerJob {
   description String?
   sources     Json
   keywords    String?
-  config      Json
   status      JobStatus @default(PENDING)
   lastRunAt   DateTime?
   createdAt   DateTime  @default(now())

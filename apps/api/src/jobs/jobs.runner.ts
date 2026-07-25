@@ -1,3 +1,4 @@
+import type { CrawlSource } from "@prisma/client";
 import { prisma } from "../config/prisma.js";
 import { logger } from "../config/logger.js";
 
@@ -22,7 +23,7 @@ function scheduleLog(jobId: number, delayMs: number, message: string, timers: No
   timers.push(timer);
 }
 
-export async function startMockRun(jobId: number, sourceNames: string[]): Promise<void> {
+export async function startMockRun(jobId: number, sources: CrawlSource[]): Promise<void> {
   stopMockRun(jobId);
 
   await prisma.jobLog.deleteMany({ where: { jobId } });
@@ -32,9 +33,18 @@ export async function startMockRun(jobId: number, sourceNames: string[]): Promis
   const stepMs = 1200;
 
   scheduleLog(jobId, (step += 1) * stepMs, "Job started", timers);
-  for (const sourceName of sourceNames) {
-    scheduleLog(jobId, (step += 1) * stepMs, `Fetching ${sourceName}...`, timers);
-    scheduleLog(jobId, (step += 1) * stepMs, `Parsed postings from ${sourceName}`, timers);
+  for (const source of sources) {
+    // The mock timer cadence stays fixed (stepMs) so demo runs finish quickly; the source's
+    // own type/defaultDelayMs are surfaced here to show they drive per-source crawl behavior
+    // rather than any job-level setting, which no longer exists.
+    const strategy = source.type === "DYNAMIC" ? "puppeteer" : "axios";
+    scheduleLog(
+      jobId,
+      (step += 1) * stepMs,
+      `Fetching ${source.name} (${strategy}, ${source.defaultDelayMs}ms delay)...`,
+      timers,
+    );
+    scheduleLog(jobId, (step += 1) * stepMs, `Parsed postings from ${source.name}`, timers);
   }
 
   const finishTimer = setTimeout(
