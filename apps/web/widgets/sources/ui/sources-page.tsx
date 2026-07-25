@@ -5,6 +5,7 @@ import { useRequireAuth } from "@/entities/session";
 import { getSources, type Source } from "@/entities/source";
 import { ApiError } from "@/shared/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
+import { PageTitle } from "@/shared/ui/page-title";
 
 function typeLabel(type: Source["type"]): string {
   return type === "DYNAMIC" ? "Puppeteer" : "Axios";
@@ -40,7 +41,7 @@ export function SourcesPage() {
   return (
     <main className="flex flex-1 justify-start p-4 md:p-8">
       <div className="flex w-full max-w-3xl flex-col gap-6">
-        <h1 className="text-2xl font-semibold">Sources</h1>
+        <PageTitle>Sources</PageTitle>
         {error && <p className="text-sm text-red-500">{error}</p>}
         <Card>
           <CardHeader>

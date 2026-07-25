@@ -186,6 +186,16 @@ requires them.
   full-width submit button (default `Button`, no `w-fit`). In-page forms (profile, settings)
   instead use `className="w-fit"` on their submit button — full-width there would look oversized
   next to a left-aligned card.
+- **Typography hierarchy** — three levels, distinguished by size *and* weight together (not just a
+  couple of pixels at the same weight), so page structure stays scannable at a glance:
+  | Level | Component | Classes | Size / weight |
+  | --- | --- | --- | --- |
+  | Page title | `shared/ui/page-title.tsx`'s `PageTitle` (one `<h1>` per page) | `text-2xl font-semibold tracking-tight` | 24px / 600 |
+  | Section heading | `shared/ui/card.tsx`'s `CardTitle` | `text-lg font-semibold` (`text-base font-semibold` in `size="sm"` cards) | 18px / 600 (16px / 600) |
+  | Form label | `shared/ui/label.tsx`'s `Label` | `text-sm font-medium` | 14px / 500 |
+
+  Always use `PageTitle` for a page's single top-level heading instead of a raw `<h1>` — it's the
+  shared definition all pages inherit from, so a future hierarchy tweak stays a one-file change.
 
 ## Testing Philosophy
 

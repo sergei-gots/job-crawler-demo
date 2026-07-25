@@ -10,6 +10,7 @@ import { getSources, type Source } from "@/entities/source";
 import { ApiError } from "@/shared/lib/api";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
+import { PageTitle } from "@/shared/ui/page-title";
 import { StatusBadge } from "@/shared/ui/status-badge";
 
 export function JobsPage() {
@@ -71,7 +72,7 @@ export function JobsPage() {
   return (
     <main className="flex flex-1 justify-start p-4 md:p-8">
       <div className="flex w-full max-w-3xl flex-col gap-6">
-        <h1 className="text-2xl font-semibold">Crawler jobs</h1>
+        <PageTitle>Crawler jobs</PageTitle>
         {error && <p className="text-sm text-red-500">{error}</p>}
 
         <Card>
