@@ -1,11 +1,5 @@
 export type JobStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "STOPPED";
 
-export interface JobConfig {
-  delayMs?: number;
-  maxDepth?: number;
-  usePuppeteer?: boolean;
-}
-
 export interface JobLog {
   id: number;
   jobId: number;
@@ -21,7 +15,6 @@ export interface Job {
   description: string | null;
   sources: number[];
   keywords: string | null;
-  config: JobConfig;
   status: JobStatus;
   lastRunAt: string | null;
   createdAt: string;

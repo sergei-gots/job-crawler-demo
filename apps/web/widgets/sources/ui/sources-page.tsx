@@ -11,6 +11,10 @@ function typeLabel(type: Source["type"]): string {
   return type === "DYNAMIC" ? "Puppeteer" : "Axios";
 }
 
+function formatDelay(delayMs: number): string {
+  return `${delayMs.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} ms`;
+}
+
 export function SourcesPage() {
   const { token, handleUnauthorized } = useRequireAuth();
   const [sources, setSources] = useState<Source[] | null>(null);
@@ -68,7 +72,7 @@ export function SourcesPage() {
                         <td className="py-1.5 pr-4">{source.name}</td>
                         <td className="py-1.5 pr-4 text-muted-foreground">{source.baseUrl}</td>
                         <td className="py-1.5 pr-4">{typeLabel(source.type)}</td>
-                        <td className="py-1.5 pr-4">{source.defaultDelayMs}ms</td>
+                        <td className="py-1.5 pr-4">{formatDelay(source.defaultDelayMs)}</td>
                         <td className="py-1.5">{source.isActive ? "Yes" : "No"}</td>
                       </tr>
                     ))}

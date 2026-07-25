@@ -13,6 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { PageTitle } from "@/shared/ui/page-title";
 import { StatusBadge } from "@/shared/ui/status-badge";
 
+const POLL_INTERVAL_MS = 2000;
+
 export function JobsPage() {
   const { token, handleUnauthorized } = useRequireAuth();
   const [jobs, setJobs] = useState<Job[] | null>(null);
@@ -54,6 +56,14 @@ export function JobsPage() {
     })();
   }, [token, loadJobs, handleAuthError]);
 
+  const hasRunningJob = jobs?.some((job) => job.status === "RUNNING") ?? false;
+
+  useEffect(() => {
+    if (!hasRunningJob) return;
+    const interval = setInterval(loadJobs, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [hasRunningJob, loadJobs]);
+
   const patchJob = useCallback((updated: Job) => {
     setJobs((prev) => (prev ? prev.map((job) => (job.id === updated.id ? updated : job)) : prev));
   }, []);
@@ -89,21 +99,25 @@ export function JobsPage() {
                 {jobs.map((job) => (
                   <div
                     key={job.id}
-                    className="flex items-center justify-between rounded-lg border border-border p-2.5"
+                    className="flex items-center justify-between gap-2 rounded-lg border border-border p-2.5"
                   >
-                    <div className="flex flex-col gap-0.5">
-                      <Link href={`/jobs/${job.id}`} className="text-sm font-medium hover:underline">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <Link
+                        href={`/jobs/${job.id}`}
+                        title={job.description ?? undefined}
+                        className="truncate text-sm font-medium hover:underline"
+                      >
                         {job.name}
                       </Link>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="shrink-0 text-xs text-muted-foreground">
                         {job.lastRunAt ? `Last run: ${new Date(job.lastRunAt).toLocaleString()}` : "Never run"}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex shrink-0 items-center gap-2">
                       <StatusBadge status={job.status} />
                       {job.status === "RUNNING" ? (
                         <Button
-                          variant="outline"
+                          variant="secondary"
                           size="sm"
                           disabled={pendingId === job.id}
                           onClick={() => stop(job.id)}
@@ -112,7 +126,7 @@ export function JobsPage() {
                         </Button>
                       ) : (
                         <Button
-                          variant="outline"
+                          variant="secondary"
                           size="sm"
                           disabled={pendingId === job.id}
                           onClick={() => start(job.id)}

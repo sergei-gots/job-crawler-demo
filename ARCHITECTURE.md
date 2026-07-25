@@ -36,11 +36,12 @@
 > not implemented. This section describes the target end-state; see `.claude/features/
 > FEATIRE_SOURCES_AND_JOBS.md` for what's real today.
 
-1. User creates a **CrawlerJob** (name, sources, keywords, config) → stored in PostgreSQL.
+1. User creates a **CrawlerJob** (name, sources, keywords) → stored in PostgreSQL.
 2. User starts the job → a task is enqueued in **Redis**; status → `RUNNING`.
 3. A **worker** picks it up, and for each selected source:
-   - checks `robots.txt` and applies **Redis** rate limiting,
-   - fetches pages with **Axios/Cheerio** (or **Puppeteer** if `usePuppeteer`),
+   - checks `robots.txt` and applies **Redis** rate limiting (using that `CrawlSource`'s own
+     `defaultDelayMs` — crawl strategy and pacing are per-source, not configurable per job),
+   - fetches pages with **Axios/Cheerio** (or **Puppeteer**, depending on that source's `type`),
    - parses postings into raw **CrawlerResult** objects,
    - passes each through the **AIEnricher** (mock → real Claude) for summary/skills/category,
    - indexes the enriched result into **Elasticsearch**,
@@ -90,7 +91,6 @@
 | description   | string \| null           |                                                     |
 | sources       | jsonb (`number[]`)       | selected `CrawlSource.id`s                         |
 | keywords      | string \| null           | free-text filter                                   |
-| config        | jsonb                    | `{ delayMs?, maxDepth?, usePuppeteer? }`           |
 | status        | enum                     | `PENDING`,`RUNNING`,`COMPLETED`,`FAILED`,`STOPPED` |
 | lastRunAt     | timestamp \| null        |                                                     |
 | createdAt     | timestamp                |                                                     |
@@ -129,7 +129,8 @@
 ## Key interfaces (to keep things swappable)
 
 - **`CrawlStrategy`** — `crawl(source, job): Promise<RawResult[]>`; implementations:
-  `AxiosCheerioStrategy`, `PuppeteerStrategy`. Chosen per job via `usePuppeteer`.
+  `AxiosCheerioStrategy`, `PuppeteerStrategy`. Chosen per source via `CrawlSource.type`
+  (`STATIC` → Axios/Cheerio, `DYNAMIC` → Puppeteer) — not configurable per job.
 - **`AIEnricher`** — `enrich(raw): Promise<Enrichment>`; implementations:
   `MockAIEnricher` (now), `ClaudeEnricher` (later). Swapped via config/env.
 - **`SearchService`** (Coveo-like) — `search(query, facets, sort): Promise<SearchResponse>`

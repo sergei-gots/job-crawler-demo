@@ -2,6 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+// Deliberate, narrow exception to the FSD "no sideways entity imports" rule: this is the single
+// chokepoint every widget already routes 401s and logout through, so it's the only place that can
+// clear the cached current-user (entities/user/lib/user-store.ts) without duplicating the call at
+// every one of the 5 call sites. See CLAUDE.md UI Design Guidelines / architecture note.
+import { setCachedUser } from "@/entities/user";
 import { clearToken, getToken } from "./token-storage";
 
 export function useRequireAuth() {
@@ -22,6 +27,7 @@ export function useRequireAuth() {
 
   const handleUnauthorized = useCallback(() => {
     clearToken();
+    setCachedUser(null);
     router.replace("/login");
   }, [router]);
 

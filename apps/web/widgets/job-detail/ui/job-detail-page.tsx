@@ -94,17 +94,13 @@ export function JobDetailPage({ jobId }: { jobId: number }) {
                     {job.sources.join(", ")}
                   </p>
                   <p>
-                    <span className="text-muted-foreground">Config: </span>
-                    {JSON.stringify(job.config)}
-                  </p>
-                  <p>
                     <span className="text-muted-foreground">Last run: </span>
                     {job.lastRunAt ? new Date(job.lastRunAt).toLocaleString() : "Never"}
                   </p>
                 </div>
                 {job.status === "RUNNING" ? (
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     size="sm"
                     className="w-fit"
                     disabled={actionPending}
@@ -114,7 +110,7 @@ export function JobDetailPage({ jobId }: { jobId: number }) {
                   </Button>
                 ) : (
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     size="sm"
                     className="w-fit"
                     disabled={actionPending}

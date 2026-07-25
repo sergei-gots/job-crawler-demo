@@ -196,6 +196,29 @@ requires them.
 
   Always use `PageTitle` for a page's single top-level heading instead of a raw `<h1>` — it's the
   shared definition all pages inherit from, so a future hierarchy tweak stays a one-file change.
+- **Button color hierarchy** — two levels, distinguished by fill, not by inventing new variants:
+  | Level | Variant | Look | Used for |
+  | --- | --- | --- | --- |
+  | Primary action | `variant="default"` (`shared/ui/button.tsx`) | Medium-dark gray fill (`--primary: oklch(0.55 0 0)`), light text — deliberately *not* near-black | Main CTA per screen: Login, Register, Create job, Update profile |
+  | Secondary action | `variant="secondary"` | Clearly gray fill (`--secondary: oklch(0.9 0 0)`), dark text — must read as visibly gray against a white `Card`, not blend into it | In-context actions on an existing item: Start / Stop a job |
+
+  Both colors are tokens in `app/globals.css` (`:root` block, light theme) — tune brightness there,
+  not per-component. `--primary` went through several rounds of manual eyeballing (`0.205` too
+  black → `0.32`/`0.42` still too dark → `0.55` approved); `--secondary` needed bumping from `0.97`
+  (indistinguishable from the white `Card` background) to `0.9`. Do not reintroduce hardcoded
+  Tailwind grays (`bg-zinc-600`, etc.) for buttons — extend these tokens instead.
+- **Headings get their own (lighter) text color, body text doesn't.** `PageTitle` and `CardTitle`
+  use a dedicated `--heading` token (`oklch(0.45 0 0)` light theme, ≈ Tailwind `zinc-600`) via the
+  `text-heading` utility, deliberately lighter than `--foreground` (`0.145`, near-black) so titles
+  read as less heavy. Regular text (labels, paragraphs, table cells) keeps using `--foreground` /
+  `text-foreground` as before — do not point body text at `--heading`, and do not lighten
+  `--foreground` itself to chase this look, since that token drives all default text app-wide and
+  a jump to anything near `0.85` drops contrast on white to ~1.2:1 (fails WCAG, effectively
+  invisible). `--heading` is intentionally left unchanged in the dark theme (same as dark
+  `--foreground`) since the "too heavy" complaint was about the light theme only.
+- **`Card` uses a real border, not a faint ring.** `border-2 border-border` (token `--border:
+  oklch(0.85 0 0)` in light theme) — bumped up from the original near-invisible `ring-1
+  ring-foreground/10` so cards visibly separate from the page background and from each other.
 
 ## Testing Philosophy
 

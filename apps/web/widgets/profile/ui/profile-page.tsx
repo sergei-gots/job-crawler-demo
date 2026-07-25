@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRequireAuth } from "@/entities/session";
-import { getCurrentUser, type CurrentUser } from "@/entities/user";
+import { getCurrentUser, setCachedUser, type CurrentUser } from "@/entities/user";
 import { ChangePasswordForm, UpdateProfileForm } from "@/features/profile";
 import { ApiError } from "@/shared/lib/api";
 import { PageTitle } from "@/shared/ui/page-title";
@@ -15,7 +15,10 @@ export function ProfilePage() {
   const loadUser = useCallback(() => {
     if (!token) return;
     getCurrentUser(token)
-      .then(setUser)
+      .then((result) => {
+        setUser(result);
+        setCachedUser(result);
+      })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) {
           handleUnauthorized();
@@ -38,7 +41,14 @@ export function ProfilePage() {
         {error && <p className="text-sm text-red-500">{error}</p>}
         {user ? (
           <>
-            <UpdateProfileForm user={user} token={token} onUpdated={setUser} />
+            <UpdateProfileForm
+              user={user}
+              token={token}
+              onUpdated={(updated) => {
+                setUser(updated);
+                setCachedUser(updated);
+              }}
+            />
             <ChangePasswordForm token={token} />
           </>
         ) : (

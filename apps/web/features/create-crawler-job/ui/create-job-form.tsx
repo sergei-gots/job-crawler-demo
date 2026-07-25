@@ -30,7 +30,7 @@ export function CreateJobForm({ sources, token, onCreated }: CreateJobFormProps)
     formState: { errors, isSubmitting },
   } = useForm<CreateJobFormValues>({
     resolver: zodResolver(createJobSchema),
-    defaultValues: { name: "", description: "", sources: [], keywords: "", usePuppeteer: false },
+    defaultValues: { name: "", description: "", sources: [], keywords: "" },
   });
 
   async function onSubmit(values: CreateJobFormValues) {
@@ -60,6 +60,11 @@ export function CreateJobForm({ sources, token, onCreated }: CreateJobFormProps)
           <div className="flex flex-col gap-2">
             <Label htmlFor="description">Description</Label>
             <Input id="description" {...register("description")} />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="keywords">Keywords</Label>
+            <Input id="keywords" placeholder="e.g. typescript, react" {...register("keywords")} />
           </div>
 
           <div className="flex flex-col gap-2">
@@ -96,36 +101,6 @@ export function CreateJobForm({ sources, token, onCreated }: CreateJobFormProps)
             />
             {errors.sources && <p className="text-sm text-red-500">{errors.sources.message}</p>}
           </div>
-
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="keywords">Keywords</Label>
-            <Input id="keywords" placeholder="e.g. typescript, react" {...register("keywords")} />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="delayMs">Delay between requests (ms)</Label>
-            <Controller
-              control={control}
-              name="delayMs"
-              render={({ field }) => (
-                <Input
-                  id="delayMs"
-                  type="number"
-                  min={0}
-                  value={field.value ?? ""}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    field.onChange(value === "" ? undefined : Number(value));
-                  }}
-                />
-              )}
-            />
-          </div>
-
-          <label className="flex items-center gap-2 text-sm text-foreground">
-            <input type="checkbox" {...register("usePuppeteer")} />
-            Use Puppeteer (JS-rendered pages)
-          </label>
 
           {serverError && <p className="text-sm text-red-500">{serverError}</p>}
 
