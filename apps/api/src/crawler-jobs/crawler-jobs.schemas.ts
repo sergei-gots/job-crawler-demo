@@ -8,3 +8,8 @@ export const createJobSchema = z.object({
 });
 
 export type CreateJobInput = z.infer<typeof createJobSchema>;
+
+// Same shape as create: the edit form always submits the full set of fields, not a partial patch.
+export const updateJobSchema = createJobSchema;
+
+export type UpdateJobInput = z.infer<typeof updateJobSchema>;
