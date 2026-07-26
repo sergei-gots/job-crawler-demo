@@ -24,3 +24,14 @@ export interface CrawlerJob {
 export interface CrawlerJobWithLogs extends CrawlerJob {
   logs: CrawlerJobLog[];
 }
+
+export interface Vacancy {
+  sourceId: number;
+  externalId: string;
+  title: string;
+  company: string | null;
+  url: string;
+  postedAt: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
