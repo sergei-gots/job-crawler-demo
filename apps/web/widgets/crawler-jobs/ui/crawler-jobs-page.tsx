@@ -131,7 +131,7 @@ export function CrawlerJobsPage() {
                           disabled={pendingId === job.id}
                           onClick={() => start(job.id)}
                         >
-                          Start
+                          {job.status === "PENDING" ? "Start" : "Restart"}
                         </Button>
                       )}
                     </div>

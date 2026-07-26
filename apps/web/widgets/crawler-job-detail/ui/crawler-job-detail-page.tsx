@@ -4,7 +4,14 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useCrawlerJobActions } from "@/features/run-crawler-job";
 import { useRequireAuth } from "@/entities/session";
-import { getCrawlerJob, type CrawlerJob, type CrawlerJobWithLogs } from "@/entities/crawler-job";
+import {
+  getCrawlerJob,
+  getCrawlerJobVacancies,
+  type CrawlerJob,
+  type CrawlerJobWithLogs,
+  type Vacancy,
+} from "@/entities/crawler-job";
+import { getSources, type Source } from "@/entities/source";
 import { ApiError } from "@/shared/lib/api";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
@@ -16,12 +23,25 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
   const { token, handleUnauthorized } = useRequireAuth();
   const [job, setJob] = useState<CrawlerJobWithLogs | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [vacancies, setVacancies] = useState<Vacancy[] | null>(null);
+  const [sources, setSources] = useState<Source[] | null>(null);
+
+  const loadVacancies = useCallback(async () => {
+    if (!token) return;
+    try {
+      const result = await getCrawlerJobVacancies(jobId, token);
+      setVacancies(result);
+    } catch {
+      // Non-fatal: the job/log panel above still works even if the vacancy list fails to load.
+    }
+  }, [token, jobId]);
 
   const loadJob = useCallback(async () => {
     if (!token) return;
     try {
       const result = await getCrawlerJob(jobId, token);
       setJob(result);
+      void loadVacancies();
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         handleUnauthorized();
@@ -29,12 +49,21 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
       }
       setLoadError("Failed to load crawler job");
     }
-  }, [token, jobId, handleUnauthorized]);
+  }, [token, jobId, handleUnauthorized, loadVacancies]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount, matches entities/session/lib/use-require-auth.ts
     loadJob();
   }, [loadJob]);
+
+  useEffect(() => {
+    if (!token) return;
+    getSources(token)
+      .then(setSources)
+      .catch(() => {
+        // Non-fatal: falls back to showing raw source ids below.
+      });
+  }, [token]);
 
   useEffect(() => {
     if (job?.status !== "RUNNING") return;
@@ -89,10 +118,30 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
                     <span className="text-muted-foreground">Keywords: </span>
                     {job.keywords ?? "—"}
                   </p>
-                  <p>
+                  <div className="flex flex-wrap items-center gap-x-1.5">
                     <span className="text-muted-foreground">Sources: </span>
-                    {job.sources.join(", ")}
-                  </p>
+                    {job.sources.map((sourceId, index) => {
+                      const source = sources?.find((s) => s.id === sourceId);
+                      return (
+                        <span key={sourceId}>
+                          {source ? (
+                            <a
+                              href={source.baseUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={source.baseUrl}
+                              className="text-link hover:underline"
+                            >
+                              {source.name}
+                            </a>
+                          ) : (
+                            sourceId
+                          )}
+                          {index < job.sources.length - 1 && ","}
+                        </span>
+                      );
+                    })}
+                  </div>
                   <p>
                     <span className="text-muted-foreground">Last run: </span>
                     {job.lastRunAt ? new Date(job.lastRunAt).toLocaleString() : "Never"}
@@ -116,7 +165,7 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
                     disabled={actionPending}
                     onClick={() => start(jobId)}
                   >
-                    Start
+                    {job.status === "PENDING" ? "Start" : "Restart"}
                   </Button>
                 )}
               </CardContent>
@@ -138,6 +187,42 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
                         </span>{" "}
                         {log.message}
                       </p>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Vacancies</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!vacancies ? (
+                  <p className="text-sm text-muted-foreground">Loading...</p>
+                ) : vacancies.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No vacancies found yet.</p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {vacancies.map((vacancy) => (
+                      <div
+                        key={`${vacancy.sourceId}:${vacancy.externalId}`}
+                        className="rounded-lg border border-border p-2.5"
+                      >
+                        <a
+                          href={vacancy.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-medium text-link hover:underline"
+                        >
+                          {vacancy.title}
+                        </a>
+                        <p className="text-xs text-muted-foreground">
+                          {vacancy.company ?? "Unknown company"}
+                          {vacancy.postedAt &&
+                            ` — posted ${new Date(vacancy.postedAt).toLocaleDateString()}`}
+                        </p>
+                      </div>
                     ))}
                   </div>
                 )}

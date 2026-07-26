@@ -1,8 +1,11 @@
 import type { CrawlerJob, JobLog } from "@prisma/client";
+import { logger } from "../config/logger.js";
 import { prisma } from "../config/prisma.js";
 import { ApiError } from "../utils/errors.js";
 import type { CreateJobInput } from "./crawler-jobs.schemas.js";
-import { startMockRun, stopMockRun } from "./crawler-jobs.runner.js";
+import { startCrawlerRun, stopCrawlerRun } from "./crawler-jobs.runner.js";
+import { queryVacanciesForJob } from "../search/queryVacancies.js";
+import type { CrawlerResultDoc } from "../search/crawlerResultsIndex.js";
 
 export function listJobs(userId: string): Promise<CrawlerJob[]> {
   return prisma.crawlerJob.findMany({ where: { userId }, orderBy: { createdAt: "desc" } });
@@ -69,7 +72,13 @@ export async function startJob(userId: string, id: number): Promise<CrawlerJob> 
     throw new ApiError(400, "Crawler job is already running");
   }
 
-  await startMockRun(id, sources);
+  // Fire-and-forget: unlike the old mock (which just scheduled timers and returned instantly),
+  // a real crawl takes real time (rate-limited network requests). The frontend already polls
+  // GET /crawler-jobs/:id while status is RUNNING, so the run continues in the background and
+  // the HTTP response here returns immediately with the RUNNING status.
+  startCrawlerRun(id, sources).catch((error: unknown) => {
+    logger.error(`Unhandled error in crawler job run ${id}: ${String(error)}`);
+  });
 
   return prisma.crawlerJob.findUniqueOrThrow({ where: { id } });
 }
@@ -81,7 +90,7 @@ export async function stopJob(userId: string, id: number): Promise<CrawlerJob> {
     throw new ApiError(400, "Crawler job is not running");
   }
 
-  stopMockRun(id);
+  stopCrawlerRun(id);
 
   // Same status-conditioned update as startJob: if the mock run's finish timer already flipped
   // the job to COMPLETED between the read above and here, this affects 0 rows and we report
@@ -97,4 +106,9 @@ export async function stopJob(userId: string, id: number): Promise<CrawlerJob> {
   await prisma.jobLog.create({ data: { jobId: id, message: "Stopped by user" } });
 
   return prisma.crawlerJob.findUniqueOrThrow({ where: { id } });
+}
+
+export async function getJobVacancies(userId: string, id: number): Promise<CrawlerResultDoc[]> {
+  const job = await getOwnedJobOrThrow(userId, id);
+  return queryVacanciesForJob(job);
 }

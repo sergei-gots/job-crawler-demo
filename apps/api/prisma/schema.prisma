@@ -28,6 +28,7 @@ model CrawlSource {
   isActive         Boolean    @default(true)
   respectRobotsTxt Boolean    @default(true)
   defaultDelayMs   Int        @default(2000)
+  maxPagesPerRun   Int        @default(1)
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 

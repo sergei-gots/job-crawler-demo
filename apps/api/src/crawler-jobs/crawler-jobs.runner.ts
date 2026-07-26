@@ -1,83 +1,92 @@
 import type { CrawlSource } from "@prisma/client";
+import { getStrategy } from "../crawler/index.js";
 import { prisma } from "../config/prisma.js";
 import { logger } from "../config/logger.js";
+import { upsertVacancy } from "../search/upsertVacancy.js";
 
-/**
- * Stub crawler runner for this increment: no real crawling, Redis, or Puppeteer/Cheerio yet.
- * It simulates progress by writing JobLog rows on a timer and flipping the job status when done.
- * To be replaced by the real crawler/queue in a later increment.
- */
-
-const activeTimers = new Map<number, NodeJS.Timeout[]>();
-
-function scheduleLog(jobId: number, delayMs: number, message: string, timers: NodeJS.Timeout[]): void {
-  const timer = setTimeout(() => {
-    void (async () => {
-      try {
-        await prisma.jobLog.create({ data: { jobId, message } });
-      } catch (error) {
-        logger.error(`Failed to write job log: ${String(error)}`);
-      }
-    })();
-  }, delayMs);
-  timers.push(timer);
+interface RunState {
+  cancelled: boolean;
 }
 
-export async function startMockRun(jobId: number, sources: CrawlSource[]): Promise<void> {
-  stopMockRun(jobId);
+const activeRuns = new Map<number, RunState>();
+
+async function logInfo(jobId: number, message: string): Promise<void> {
+  await prisma.jobLog.create({ data: { jobId, message } });
+}
+
+async function logWarn(jobId: number, message: string): Promise<void> {
+  await prisma.jobLog.create({ data: { jobId, level: "WARN", message } });
+}
+
+async function logError(jobId: number, message: string): Promise<void> {
+  await prisma.jobLog.create({ data: { jobId, level: "ERROR", message } });
+}
+
+async function crawlSource(jobId: number, source: CrawlSource): Promise<void> {
+  await logInfo(jobId, `Starting crawl of ${source.name}`);
+
+  const strategy = getStrategy(source);
+  if (!strategy) {
+    await logWarn(jobId, `crawling not yet implemented for ${source.name}`);
+    return;
+  }
+
+  const { vacancies, pageLogs } = await strategy.crawl(source);
+  for (const line of pageLogs) {
+    await logInfo(jobId, line);
+  }
+  for (const vacancy of vacancies) {
+    await upsertVacancy(vacancy);
+  }
+  await logInfo(jobId, `Found ${vacancies.length} vacancies for ${source.name}`);
+}
+
+export async function startCrawlerRun(jobId: number, sources: CrawlSource[]): Promise<void> {
+  stopCrawlerRun(jobId);
 
   await prisma.jobLog.deleteMany({ where: { jobId } });
 
-  const timers: NodeJS.Timeout[] = [];
-  let step = 0;
-  const stepMs = 1200;
+  const runState: RunState = { cancelled: false };
+  activeRuns.set(jobId, runState);
 
-  scheduleLog(jobId, (step += 1) * stepMs, "Crawler job started", timers);
+  await logInfo(jobId, "Crawler job started");
+
   for (const source of sources) {
-    // The mock timer cadence stays fixed (stepMs) so demo runs finish quickly; the source's
-    // own type/defaultDelayMs are surfaced here to show they drive per-source crawl behavior
-    // rather than any job-level setting, which no longer exists.
-    const strategy = source.type === "DYNAMIC" ? "puppeteer" : "axios";
-    scheduleLog(
-      jobId,
-      (step += 1) * stepMs,
-      `Fetching ${source.name} (${strategy}, ${source.defaultDelayMs}ms delay)...`,
-      timers,
-    );
-    scheduleLog(jobId, (step += 1) * stepMs, `Parsed postings from ${source.name}`, timers);
+    if (runState.cancelled) break;
+
+    try {
+      await crawlSource(jobId, source);
+    } catch (error) {
+      logger.error(`Failed to crawl source ${source.name} for job ${jobId}: ${String(error)}`);
+      await logError(jobId, `Failed to crawl ${source.name}: ${String(error)}`);
+    }
   }
 
-  const finishTimer = setTimeout(
-    () => {
-      void (async () => {
-        try {
-          // Status-conditioned update, mirroring stopJob's own conditioned write: if the job was
-          // already stopped by the user before this timer fired, this affects 0 rows and we skip
-          // appending a "Crawler job completed" log that would contradict the STOPPED status.
-          const { count } = await prisma.crawlerJob.updateMany({
-            where: { id: jobId, status: "RUNNING" },
-            data: { status: "COMPLETED" },
-          });
-          if (count > 0) {
-            await prisma.jobLog.create({ data: { jobId, message: "Crawler job completed" } });
-          }
-        } catch (error) {
-          logger.error(`Failed to finish mock job run: ${String(error)}`);
-        } finally {
-          activeTimers.delete(jobId);
-        }
-      })();
-    },
-    (step += 1) * stepMs,
-  );
-  timers.push(finishTimer);
+  activeRuns.delete(jobId);
 
-  activeTimers.set(jobId, timers);
+  // If stopped by the user mid-run, stopCrawlerRun already flipped RUNNING -> STOPPED and wrote its
+  // own JobLog line — don't also try to complete the job.
+  if (runState.cancelled) return;
+
+  try {
+    // Status-conditioned update, mirroring stopJob's own conditioned write: if the job was
+    // already stopped by the user right as the loop above finished, this affects 0 rows and we
+    // skip appending a "Crawler job completed" log that would contradict the STOPPED status.
+    const { count } = await prisma.crawlerJob.updateMany({
+      where: { id: jobId, status: "RUNNING" },
+      data: { status: "COMPLETED" },
+    });
+    if (count > 0) {
+      await logInfo(jobId, "Crawler job completed");
+    }
+  } catch (error) {
+    logger.error(`Failed to finish crawler job run: ${String(error)}`);
+  }
 }
 
-export function stopMockRun(jobId: number): void {
-  const timers = activeTimers.get(jobId);
-  if (!timers) return;
-  for (const timer of timers) clearTimeout(timer);
-  activeTimers.delete(jobId);
+export function stopCrawlerRun(jobId: number): void {
+  const runState = activeRuns.get(jobId);
+  if (!runState) return;
+  runState.cancelled = true;
+  activeRuns.delete(jobId);
 }
