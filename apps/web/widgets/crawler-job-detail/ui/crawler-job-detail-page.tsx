@@ -11,6 +11,7 @@ import {
   type CrawlerJobWithLogs,
   type Vacancy,
 } from "@/entities/crawler-job";
+import { getSources, type Source } from "@/entities/source";
 import { ApiError } from "@/shared/lib/api";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
@@ -23,6 +24,7 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
   const [job, setJob] = useState<CrawlerJobWithLogs | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [vacancies, setVacancies] = useState<Vacancy[] | null>(null);
+  const [sources, setSources] = useState<Source[] | null>(null);
 
   const loadVacancies = useCallback(async () => {
     if (!token) return;
@@ -53,6 +55,15 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount, matches entities/session/lib/use-require-auth.ts
     loadJob();
   }, [loadJob]);
+
+  useEffect(() => {
+    if (!token) return;
+    getSources(token)
+      .then(setSources)
+      .catch(() => {
+        // Non-fatal: falls back to showing raw source ids below.
+      });
+  }, [token]);
 
   useEffect(() => {
     if (job?.status !== "RUNNING") return;
@@ -107,10 +118,29 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
                     <span className="text-muted-foreground">Keywords: </span>
                     {job.keywords ?? "—"}
                   </p>
-                  <p>
+                  <div className="flex flex-wrap items-center gap-x-1.5">
                     <span className="text-muted-foreground">Sources: </span>
-                    {job.sources.join(", ")}
-                  </p>
+                    {job.sources.map((sourceId, index) => {
+                      const source = sources?.find((s) => s.id === sourceId);
+                      return (
+                        <span key={sourceId}>
+                          {source ? (
+                            <a
+                              href={source.baseUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-link hover:underline"
+                            >
+                              {source.name}
+                            </a>
+                          ) : (
+                            sourceId
+                          )}
+                          {index < job.sources.length - 1 && ","}
+                        </span>
+                      );
+                    })}
+                  </div>
                   <p>
                     <span className="text-muted-foreground">Last run: </span>
                     {job.lastRunAt ? new Date(job.lastRunAt).toLocaleString() : "Never"}
