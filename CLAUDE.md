@@ -13,7 +13,7 @@ Create a clean, well-structured MVP that demonstrates the full tech stack: TypeS
 ### Backend (`apps/api`)
 
 - **TypeScript + Node.js + Express** — Core backend and REST API
-- **Puppeteer** — Crawling JavaScript-rendered pages (only when enabled per job)
+- **Puppeteer** — Crawling JavaScript-rendered pages (chosen per source, via `CrawlSource.type`)
 - **Axios + Cheerio** — Fast static page crawling
 - **PostgreSQL** — Store users, Crawler Jobs, job logs, settings
 - **Redis** — Rate limiting, simple job queue/state, caching
@@ -41,11 +41,11 @@ Create a clean, well-structured MVP that demonstrates the full tech stack: TypeS
 
 Given a 2-week timeline, MVP scope is **one source, done well**, rather than three done thinly:
 
-| Key           | Site                     | Status   | Puppeteer                                                             | Notes                                               |
-| ------------- | ------------------------ | -------- | --------------------------------------------------------------------- | --------------------------------------------------- |
-| `habr_career` | career.habr.com          | MVP      | tbd — verify against real robots.txt/markup when building the crawler | RU tech jobs; good fit for AI skill-extraction demo |
-| `moikrug`     | moikrug.ru               | post-MVP | false                                                                 | hh-like, simpler markup                             |
-| `craigslist`  | craigslist.org (SW jobs) | post-MVP | false                                                                 | International example, multiple cities              |
+| Key           | Site                     | Status   | Type (`CrawlSource.type`)                                    | Notes                                               |
+| ------------- | ------------------------ | -------- | ------------------------------------------------------------- | --------------------------------------------------- |
+| `habr_career` | career.habr.com          | MVP      | `DYNAMIC` (Puppeteer) — real markup/robots.txt still unverified | RU tech jobs; good fit for AI skill-extraction demo |
+| `moikrug`     | moikrug.ru               | post-MVP | `STATIC` (Axios/Cheerio)                                       | hh-like, simpler markup                             |
+| `craigslist`  | craigslist.org (SW jobs) | post-MVP | `STATIC` (Axios/Cheerio)                                       | International example, multiple cities              |
 
 `moikrug` and `craigslist` are deferred — add them later as additional `CrawlStrategy` adapters if
 time allows, without changing the crawler architecture.
@@ -55,8 +55,10 @@ selectable from the Sources/Jobs UI, but no `CrawlStrategy` reads them yet — I
 `POST /jobs/:id/start` runs a **mock in-process runner** (see `apps/api/src/jobs/jobs.runner.ts`
 and `.claude/features/FEATIRE_SOURCES_AND_JOBS.md`), not a real crawl of any source.
 
-For the active source we define: `usePuppeteer` (true/false), base URL(s), and the CSS selectors /
-fields to parse. Always respect the site's `robots.txt` and apply rate limiting.
+For each source we define: `type` (`STATIC`/`DYNAMIC` — determines Axios+Cheerio vs Puppeteer),
+`defaultDelayMs`, base URL, and (eventually) the CSS selectors/fields to parse. This lives on the
+`CrawlSource`, not the job — a job just picks which sources to run against. Always respect the
+site's `robots.txt` and apply rate limiting.
 
 ## Coding Standards
 
@@ -110,7 +112,8 @@ As a user I can:
    - Job name
    - Select data sources
    - Define keywords/filters
-   - Configure parameters (delay, depth, use Puppeteer or not)
+   - (Crawl strategy and delay are not job-level settings — they come from each selected
+     `CrawlSource`'s own `type`/`defaultDelayMs`.)
 4. Start / Stop my Crawler Jobs
 5. See the status and progress of my jobs
 6. Search through collected data using Elasticsearch (Coveo-like facets + relevance)
@@ -122,7 +125,7 @@ As a user I can:
 Full field definitions live in `ARCHITECTURE.md`. Core entities:
 
 - **User** — PostgreSQL. Owns everything.
-- **CrawlerJob** — PostgreSQL. Belongs to a `userId`; holds config + status.
+- **CrawlerJob** — PostgreSQL. Belongs to a `userId`; holds selected sources, keywords, and status.
 - **CrawlerResult** — Elasticsearch (primary). A crawled + AI-enriched job posting.
 - **JobLog** — PostgreSQL. Execution log lines per job.
 
@@ -133,7 +136,7 @@ Full field definitions live in `ARCHITECTURE.md`. Core entities:
 - Russian can only be used in personal development notes (`.notes/`, git-ignored).
 - Every Crawler Job belongs to a specific `userId`.
 - Respect `robots.txt` and implement rate limiting (via Redis).
-- Puppeteer should be used only when explicitly enabled in the job settings.
+- Puppeteer vs Axios/Cheerio is chosen per source (`CrawlSource.type`), never a per-job setting.
 - AI enrichment goes through an interface; ship a `MockAIEnricher` first, real Claude API later.
 - Keep the architecture modular and easy to extend.
 - Prefer simplicity for MVP (avoid over-engineering).
