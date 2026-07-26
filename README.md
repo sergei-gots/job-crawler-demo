@@ -18,8 +18,8 @@ data models and component design.
   `widgets/sidebar`, `widgets/dashboard`, `widgets/profile`) — login/register pages, a
   protected dashboard stub, and a profile page (edit name, change password)
 - Sources & Crawler Jobs (Increment 1, see `.claude/features/FEATIRE_SOURCES_AND_JOBS.md`):
-  `CrawlSource`, `CrawlerJob`, `JobLog` Prisma models, seeded with three sources (Habr Career,
-  Moikrug, Craigslist — matches `CLAUDE.md` → Data Sources). Endpoints: `GET /sources`,
+  `CrawlSource`, `CrawlerJob`, `JobLog` Prisma models, seeded with four sources (Habr Career,
+  RemoteOK, WeWorkRemotely, Craigslist — matches `CLAUDE.md` → Data Sources). Endpoints: `GET /sources`,
   `GET /sources/:id`, `GET /jobs`, `POST /jobs`, `GET /jobs/:id`, `POST /jobs/:id/start`,
   `POST /jobs/:id/stop` (all user-scoped, behind JWT auth). Frontend: `entities/source`,
   `entities/job`, `features/create-crawler-job`, `features/run-job`, `widgets/sources`,
