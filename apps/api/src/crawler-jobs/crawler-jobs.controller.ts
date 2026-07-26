@@ -1,6 +1,13 @@
 import type { Request, Response } from "express";
 import { handleError } from "../utils/errors.js";
-import { createJob, getJob, listJobs, startJob, stopJob } from "./crawler-jobs.service.js";
+import {
+  createJob,
+  getJob,
+  getJobVacancies,
+  listJobs,
+  startJob,
+  stopJob,
+} from "./crawler-jobs.service.js";
 import { createJobSchema } from "./crawler-jobs.schemas.js";
 
 function parseJobId(req: Request, res: Response): number | undefined {
@@ -67,6 +74,18 @@ export async function postStop(req: Request, res: Response): Promise<void> {
   try {
     const job = await stopJob(req.userId!, id);
     res.status(200).json({ job });
+  } catch (error) {
+    handleError(res, error, "crawler-jobs");
+  }
+}
+
+export async function getVacancies(req: Request, res: Response): Promise<void> {
+  const id = parseJobId(req, res);
+  if (id === undefined) return;
+
+  try {
+    const vacancies = await getJobVacancies(req.userId!, id);
+    res.status(200).json({ vacancies });
   } catch (error) {
     handleError(res, error, "crawler-jobs");
   }

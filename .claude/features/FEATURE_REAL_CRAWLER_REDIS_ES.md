@@ -13,9 +13,16 @@ two read endpoints. AI enrichment and the full Coveo-like search/facet layer sta
 
 ## Status
 
-**Planned, not yet implemented.** This doc records the plan agreed with the user before writing
-code; see `apps/api/src/crawler-jobs/`, `apps/api/src/crawler/`, and `apps/api/src/search/` for
-what's actually real once implementation starts.
+**Implemented and manually verified.** `apps/api/src/crawler/` (Axios+Cheerio strategy, Redis
+rate limiter, Redis page cache) and `apps/api/src/search/` (Elasticsearch client, index, upsert,
+queries) are real; `apps/api/src/crawler-jobs/crawler-jobs.runner.ts` performs a real crawl
+instead of the Increment 1 mock timers. Verified end-to-end: a real crawl of `career.habr.com`
+returns 25 vacancies, `JobLog` shows real fetch/parse progress, `GET /sources/:id/vacancies` and
+`GET /crawler-jobs/:id/vacancies` return real data, a second run within the cache TTL shows a
+cache hit with no ES duplicates, an unimplemented source (RemoteOK) logs a `WARN` and still
+completes, and `POST /crawler-jobs/:id/start` now returns immediately (fire-and-forget) instead
+of blocking on the crawl. AI enrichment and the full Coveo-like search/facet layer remain out of
+scope, as planned.
 
 ## Terminology
 
@@ -165,11 +172,11 @@ the mock body is swapped for real logic:
 
 ## Implementation steps
 
-- [ ] Add `redis`/`elasticsearch` to `docker-compose.yml`; add env vars; add npm dependencies.
-- [ ] Add `CrawlSource.maxPagesPerRun` migration.
-- [ ] Build `apps/api/src/crawler/` (strategy interface, Axios/Cheerio strategy, rate limiter,
+- [x] Add `redis`/`elasticsearch` to `docker-compose.yml`; add env vars; add npm dependencies.
+- [x] Add `CrawlSource.maxPagesPerRun` migration.
+- [x] Build `apps/api/src/crawler/` (strategy interface, Axios/Cheerio strategy, rate limiter,
       page cache, Redis client).
-- [ ] Build `apps/api/src/search/` (ES client, index mapping, upsert, query functions).
-- [ ] Replace the mock runner with the real one; keep the signature/race-guards unchanged.
-- [ ] Add the two vacancy read endpoints.
-- [ ] Manual verification per the checklist above.
+- [x] Build `apps/api/src/search/` (ES client, index mapping, upsert, query functions).
+- [x] Replace the mock runner with the real one; keep the signature/race-guards unchanged.
+- [x] Add the two vacancy read endpoints.
+- [x] Manual verification per the checklist above.
