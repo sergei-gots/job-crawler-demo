@@ -93,13 +93,19 @@ enum LogLevel {
 
 ## 2. Predefined Sources (Seed Data) — implemented
 
-Aligned with CLAUDE.md's Data Sources table (Habr Career / Moikrug / Craigslist), not the
-SuperJob-inclusive list originally sketched here. Implemented as an idempotent upsert-by-`name`
-seed script (`apps/api/prisma/seed.ts`, run via `npm run --workspace apps/api prisma:seed`):
+Aligned with CLAUDE.md's Data Sources table (Habr Career / RemoteOK / WeWorkRemotely / Craigslist),
+not the SuperJob-inclusive list originally sketched here. Implemented as an idempotent
+upsert-by-`name` seed script (`apps/api/prisma/seed.ts`, run via
+`npm run --workspace apps/api prisma:seed`):
 
-- `Habr Career` — `https://career.habr.com` — `DYNAMIC` — 2500ms delay
-- `Moikrug` — `https://moikrug.ru` — `STATIC` — 2000ms delay
-- `Craigslist` — `https://craigslist.org` — `STATIC` — 1500ms delay
+- `Habr Career` — `https://career.habr.com` — `DYNAMIC` — 12000ms delay
+- `RemoteOK` — `https://remoteok.com` — `DYNAMIC` — 11000ms delay
+- `WeWorkRemotely` — `https://weworkremotely.com` — `STATIC` — 11000ms delay
+- `Craigslist` — `https://craigslist.org` — `STATIC` — 11000ms delay
+
+`Moikrug` was seeded originally but removed via migration
+`20260726160000_replace_moikrug_with_remoteok_wwr` — `moikrug.ru` now permanently redirects to
+`career.habr.com` (Habr absorbed it), so it's no longer a distinct crawl target.
 
 ## 3. Redis Usage — deferred to a later increment
 

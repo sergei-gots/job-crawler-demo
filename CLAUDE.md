@@ -41,16 +41,21 @@ Create a clean, well-structured MVP that demonstrates the full tech stack: TypeS
 
 Given a 2-week timeline, MVP scope is **one source, done well**, rather than three done thinly:
 
-| Key           | Site                     | Status   | Type (`CrawlSource.type`)                                    | Notes                                               |
-| ------------- | ------------------------ | -------- | ------------------------------------------------------------- | --------------------------------------------------- |
-| `habr_career` | career.habr.com          | MVP      | `DYNAMIC` (Puppeteer) — real markup/robots.txt still unverified | RU tech jobs; good fit for AI skill-extraction demo |
-| `moikrug`     | moikrug.ru               | post-MVP | `STATIC` (Axios/Cheerio)                                       | hh-like, simpler markup                             |
-| `craigslist`  | craigslist.org (SW jobs) | post-MVP | `STATIC` (Axios/Cheerio)                                       | International example, multiple cities              |
+| Key              | Site                     | Status   | Type (`CrawlSource.type`)                                     | Notes                                                        |
+| ---------------- | ------------------------ | -------- | -------------------------------------------------------------- | ------------------------------------------------------------- |
+| `habr_career`    | career.habr.com          | MVP      | `DYNAMIC` — but the vacancies listing was found fully server-rendered on a manual check; Puppeteer may not actually be required, re-verify when building the real crawler | RU tech jobs; good fit for AI skill-extraction demo |
+| `remoteok`       | remoteok.com             | post-MVP | `DYNAMIC` — `robots.txt` looks permissive (`Crawl-delay: 1`), but the site actively returns `403` on a plain non-browser request (Cloudflare bot check); a real browser/Puppeteer is needed to get past the wall, not just to render JS | Tech jobs with ready-made skill tags — good AI skill-extraction fit; replaces `moikrug` |
+| `weworkremotely` | weworkremotely.com       | post-MVP | `STATIC` — `robots.txt` is `Allow: /` aside from account/admin paths; listings confirmed server-rendered on a manual check | Simple, long-established scraper-friendly job board |
+| `craigslist`     | craigslist.org (SW jobs) | post-MVP | `STATIC` — listings are server-rendered and accessible without login on a single request, but craigslist has a documented history of legal/technical enforcement against scrapers (e.g. the 3taps/PadMapper case); expect rate-limiting or CAPTCHA under sustained automated access even though a one-off check looks simple | International example, multiple cities |
 
-`moikrug` and `craigslist` are deferred — add them later as additional `CrawlStrategy` adapters if
-time allows, without changing the crawler architecture.
+`moikrug` is gone as a distinct source — `moikrug.ru` now permanently redirects (301, both
+`robots.txt` and the site itself) to `career.habr.com`; Habr absorbed it. Replaced by `remoteok`
+and `weworkremotely` above.
 
-All three are already seeded as `CrawlSource` rows (`apps/api/prisma/seed.ts`) so they're
+`remoteok`, `weworkremotely`, and `craigslist` are deferred — add them later as additional
+`CrawlStrategy` adapters if time allows, without changing the crawler architecture.
+
+All four are already seeded as `CrawlSource` rows (`apps/api/prisma/seed.ts`) so they're
 selectable from the Sources/Jobs UI, but no `CrawlStrategy` reads them yet — Increment 1's
 `POST /jobs/:id/start` runs a **mock in-process runner** (see `apps/api/src/jobs/jobs.runner.ts`
 and `.claude/features/FEATIRE_SOURCES_AND_JOBS.md`), not a real crawl of any source.
