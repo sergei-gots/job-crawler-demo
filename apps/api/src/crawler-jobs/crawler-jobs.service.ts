@@ -2,7 +2,7 @@ import type { CrawlerJob, JobLog } from "@prisma/client";
 import { logger } from "../config/logger.js";
 import { prisma } from "../config/prisma.js";
 import { ApiError } from "../utils/errors.js";
-import type { CreateJobInput } from "./crawler-jobs.schemas.js";
+import type { CreateJobInput, UpdateJobInput } from "./crawler-jobs.schemas.js";
 import { startCrawlerRun, stopCrawlerRun } from "./crawler-jobs.runner.js";
 import { queryVacanciesForJob } from "../search/queryVacancies.js";
 import type { CrawlerResultDoc } from "../search/crawlerResultsIndex.js";
@@ -111,4 +111,39 @@ export async function stopJob(userId: string, id: number): Promise<CrawlerJob> {
 export async function getJobVacancies(userId: string, id: number): Promise<CrawlerResultDoc[]> {
   const job = await getOwnedJobOrThrow(userId, id);
   return queryVacanciesForJob(job);
+}
+
+export async function updateJob(
+  userId: string,
+  id: number,
+  input: UpdateJobInput,
+): Promise<CrawlerJob> {
+  const job = await getOwnedJobOrThrow(userId, id);
+  if (job.status === "RUNNING") {
+    throw new ApiError(400, "Cannot edit a running crawler job");
+  }
+
+  const sources = await prisma.crawlSource.findMany({ where: { id: { in: input.sources } } });
+  if (sources.length !== input.sources.length) {
+    throw new ApiError(400, "One or more selected sources do not exist");
+  }
+
+  return prisma.crawlerJob.update({
+    where: { id },
+    data: {
+      name: input.name,
+      description: input.description,
+      sources: input.sources,
+      keywords: input.keywords,
+    },
+  });
+}
+
+export async function deleteJob(userId: string, id: number): Promise<void> {
+  const job = await getOwnedJobOrThrow(userId, id);
+  if (job.status === "RUNNING") {
+    throw new ApiError(400, "Cannot delete a running crawler job");
+  }
+
+  await prisma.crawlerJob.delete({ where: { id } });
 }

@@ -45,3 +45,11 @@ export async function patchJson<T>(path: string, body: unknown, token: string): 
   });
   return parseResponse<T>(res);
 }
+
+export async function deleteRequest(path: string, token: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  await parseResponse<void>(res);
+}

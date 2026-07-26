@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useCrawlerJobActions } from "@/features/run-crawler-job";
+import { useDeleteCrawlerJob } from "@/features/delete-crawler-job";
+import { EditJobForm } from "@/features/edit-crawler-job";
 import { useRequireAuth } from "@/entities/session";
 import {
   getCrawlerJob,
@@ -20,11 +23,14 @@ import { StatusBadge } from "@/shared/ui/status-badge";
 const POLL_INTERVAL_MS = 2000;
 
 export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { token, handleUnauthorized } = useRequireAuth();
   const [job, setJob] = useState<CrawlerJobWithLogs | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [vacancies, setVacancies] = useState<Vacancy[] | null>(null);
   const [sources, setSources] = useState<Source[] | null>(null);
+  const [isEditing, setIsEditing] = useState(searchParams.get("edit") === "1");
 
   const loadVacancies = useCallback(async () => {
     if (!token) return;
@@ -86,8 +92,14 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
     onStopped: () => loadJob(),
   });
 
+  const { remove: removeJob, pendingId: deletePendingId, error: deleteError } = useDeleteCrawlerJob({
+    token,
+    handleUnauthorized,
+    onDeleted: () => router.push("/crawler-jobs"),
+  });
+
   const actionPending = pendingId === jobId;
-  const error = actionError ?? loadError;
+  const error = actionError ?? deleteError ?? loadError;
 
   if (!token) return null;
 
@@ -100,6 +112,17 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
         {error && <p className="text-sm text-red-500">{error}</p>}
         {!job ? (
           <p className="text-sm text-muted-foreground">Loading...</p>
+        ) : isEditing && sources ? (
+          <EditJobForm
+            job={job}
+            sources={sources}
+            token={token}
+            onSaved={(updated) => {
+              setJob((prev) => (prev ? { ...prev, ...updated } : prev));
+              setIsEditing(false);
+            }}
+            onCancel={() => setIsEditing(false)}
+          />
         ) : (
           <>
             <Card>
@@ -116,7 +139,7 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
                 <div className="flex flex-col gap-1 text-sm">
                   <p>
                     <span className="text-muted-foreground">Keywords: </span>
-                    {job.keywords ?? "—"}
+                    {job.keywords ?? "-"}
                   </p>
                   <div className="flex flex-wrap items-center gap-x-1.5">
                     <span className="text-muted-foreground">Sources: </span>
@@ -147,27 +170,53 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
                     {job.lastRunAt ? new Date(job.lastRunAt).toLocaleString() : "Never"}
                   </p>
                 </div>
-                {job.status === "RUNNING" ? (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="w-fit"
-                    disabled={actionPending}
-                    onClick={() => stop(jobId)}
-                  >
-                    Stop
-                  </Button>
-                ) : (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="w-fit"
-                    disabled={actionPending}
-                    onClick={() => start(jobId)}
-                  >
-                    {job.status === "PENDING" ? "Start" : "Restart"}
-                  </Button>
-                )}
+                <div className="flex items-center justify-between">
+                  <div>
+                    {job.status === "RUNNING" ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-fit"
+                        disabled={actionPending}
+                        onClick={() => stop(jobId)}
+                      >
+                        Stop
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-fit"
+                        disabled={actionPending}
+                        onClick={() => start(jobId)}
+                      >
+                        {job.status === "PENDING" ? "Start" : "Restart"}
+                      </Button>
+                    )}
+                  </div>
+                  {job.status !== "RUNNING" && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-fit"
+                        onClick={() => setIsEditing(true)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="icon-sm"
+                        aria-label="Delete crawler job"
+                        title="Delete crawler job"
+                        disabled={deletePendingId === jobId}
+                        onClick={() => removeJob(jobId, job.name)}
+                      >
+                        🗑️
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
@@ -220,7 +269,7 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
                         <p className="text-xs text-muted-foreground">
                           {vacancy.company ?? "Unknown company"}
                           {vacancy.postedAt &&
-                            ` — posted ${new Date(vacancy.postedAt).toLocaleDateString()}`}
+                            ` - posted ${new Date(vacancy.postedAt).toLocaleDateString()}`}
                         </p>
                       </div>
                     ))}

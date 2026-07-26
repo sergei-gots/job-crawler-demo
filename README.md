@@ -1,8 +1,14 @@
-# JobCrawler Demo
+# Job-Crawler-Demo
 
 A modular demonstration web application showcasing a modern web crawling and data processing
-stack: TypeScript/Express backend, Puppeteer/Axios crawling, Elasticsearch search, Redis, JWT auth,
-and AI enrichment via the Claude API.
+stack:
+
+- **Backend**: Node.js, Express, TypeScript
+- **Frontend**: Next.js, React, Tailwind CSS
+- **Crawling**: Puppeteer, Axios + Cheerio
+- **Data**: PostgreSQL, Elasticsearch, Redis
+- **Auth**: JWT
+- **AI enrichment**: Claude API
 
 See `CLAUDE.md` for the full spec and `ARCHITECTURE.md` for data models and component design.
 
@@ -66,6 +72,17 @@ See `.claude/features/FEATURE_REAL_CRAWLER_REDIS_ES.md`.
   - `GET /crawler-jobs/:id/vacancies`
 - A simple vacancy list on the crawler job detail page — see "Checking crawled data" below.
 - No AI enrichment and no Coveo-like search/facet UI yet.
+
+### Crawler job editing & deletion
+
+- New endpoints (user-scoped, behind JWT auth; both reject with `400` if the job is `RUNNING`):
+  - `PATCH /crawler-jobs/:id`
+  - `DELETE /crawler-jobs/:id`
+- Frontend: `features/edit-crawler-job`, `features/delete-crawler-job`. Edit/Delete buttons on
+  both the crawler jobs list and the job detail page, hidden while a job is `RUNNING`. Edit opens
+  an inline form (reusing the create form's fields, prefilled); Delete asks for confirmation
+  first.
+- See `CLAUDE.md` → Security Considerations for the ownership/authorization model these follow.
 
 ### Not yet implemented
 

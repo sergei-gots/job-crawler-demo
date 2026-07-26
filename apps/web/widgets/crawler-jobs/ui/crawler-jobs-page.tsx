@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { CreateJobForm } from "@/features/create-crawler-job";
 import { useCrawlerJobActions } from "@/features/run-crawler-job";
+import { useDeleteCrawlerJob } from "@/features/delete-crawler-job";
 import { useRequireAuth } from "@/entities/session";
 import { getCrawlerJobs, type CrawlerJob } from "@/entities/crawler-job";
 import { getSources, type Source } from "@/entities/source";
@@ -75,7 +76,17 @@ export function CrawlerJobsPage() {
     onStopped: patchJob,
   });
 
-  const error = actionError ?? loadError;
+  const {
+    remove,
+    pendingId: deletePendingId,
+    error: deleteError,
+  } = useDeleteCrawlerJob({
+    token,
+    handleUnauthorized,
+    onDeleted: (id) => setJobs((prev) => (prev ? prev.filter((job) => job.id !== id) : prev)),
+  });
+
+  const error = actionError ?? deleteError ?? loadError;
 
   if (!token) return null;
 
@@ -99,7 +110,7 @@ export function CrawlerJobsPage() {
                 {jobs.map((job) => (
                   <div
                     key={job.id}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-border p-2.5"
+                    className="flex flex-wrap items-center justify-between gap-y-2 gap-x-2 rounded-lg border border-border p-2.5"
                   >
                     <div className="flex min-w-0 flex-1 items-center gap-3">
                       <Link
@@ -113,26 +124,47 @@ export function CrawlerJobsPage() {
                         {job.lastRunAt ? `Last run: ${new Date(job.lastRunAt).toLocaleString()}` : "Never run"}
                       </p>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
+                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
                       <StatusBadge status={job.status} />
                       {job.status === "RUNNING" ? (
                         <Button
                           variant="secondary"
                           size="sm"
+                          className="w-20"
                           disabled={pendingId === job.id}
                           onClick={() => stop(job.id)}
                         >
                           Stop
                         </Button>
                       ) : (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          disabled={pendingId === job.id}
-                          onClick={() => start(job.id)}
-                        >
-                          {job.status === "PENDING" ? "Start" : "Restart"}
-                        </Button>
+                        <>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="w-20"
+                            disabled={pendingId === job.id}
+                            onClick={() => start(job.id)}
+                          >
+                            {job.status === "PENDING" ? "Start" : "Restart"}
+                          </Button>
+                          <div className="ml-4 flex items-center gap-2">
+                            <Link href={`/crawler-jobs/${job.id}?edit=1`}>
+                              <Button variant="secondary" size="sm">
+                                Edit
+                              </Button>
+                            </Link>
+                            <Button
+                              variant="secondary"
+                              size="icon-sm"
+                              aria-label="Delete crawler job"
+                              title="Delete crawler job"
+                              disabled={deletePendingId === job.id}
+                              onClick={() => remove(job.id, job.name)}
+                            >
+                              🗑️
+                            </Button>
+                          </div>
+                        </>
                       )}
                     </div>
                   </div>

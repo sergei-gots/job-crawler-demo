@@ -1,8 +1,8 @@
-# CLAUDE.md - JobCrawler Demo
+# CLAUDE.md - Job-Crawler-Demo
 
 ## Project Overview
 
-**Project Name:** JobCrawler Demo  
+**Project Name:** Job-Crawler-Demo  
 **Description:** A modular demonstration web application showcasing a modern web crawling and data processing stack, inspired by enterprise data crawling systems (e.g. SAP-style).
 
 **Goal:**  
@@ -151,6 +151,18 @@ Full field definitions live in `ARCHITECTURE.md`. Core entities:
   `README.md`, or `ARCHITECTURE.md`, update the affected file(s) as part of that step —
   don't let the docs drift out of sync with the code.
 
+## Security Considerations
+
+- Crawler jobs are always accessed through user ownership checks (`getOwnedJobOrThrow` in
+  `crawler-jobs.service.ts`) — a request for another user's job returns `404`, not `403`, so
+  existence isn't leaked.
+- Update/Delete operations validate ownership **and** status (reject if `RUNNING`) before
+  modifying anything, server-side, regardless of what the client sent.
+- Client-side restrictions (disabled buttons, hidden actions while `RUNNING`) are UX only —
+  server-side validation in the service layer is authoritative and re-checked on every request.
+- API schemas (Zod, `crawler-jobs.schemas.ts`) define an explicit allow-list of writable fields;
+  extra keys in a request body are stripped, not persisted — no mass-assignment via `PATCH`.
+
 ## Product UI Principles
 
 This application is a crawler management console.
@@ -239,6 +251,10 @@ requires them.
   palette — deliberate, to keep links visually distinct from every other UI signal, which are all
   achromatic. Pair with `hover:underline`. First use: the Sources table's Base URL column
   (`widgets/sources/ui/sources-page.tsx`).
+- **User-facing text uses a plain hyphen (`-`), not an en dash (`–`) or em dash (`—`).** The
+  longer dashes read as visually heavier/wider than intended at UI text sizes. Applies to
+  `apps/web` UI strings (labels, placeholders, copy) — not to docs (`CLAUDE.md`, `README.md`,
+  `ARCHITECTURE.md`) or code comments, where an em dash is fine.
 
 ## Testing Philosophy
 

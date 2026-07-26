@@ -1,4 +1,4 @@
-# ARCHITECTURE.md — JobCrawler Demo
+# ARCHITECTURE.md — Job-Crawler-Demo
 
 > High-level architecture and data models. For scope, standards and stack see `CLAUDE.md`.
 

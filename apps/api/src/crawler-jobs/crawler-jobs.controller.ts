@@ -2,13 +2,15 @@ import type { Request, Response } from "express";
 import { handleError } from "../utils/errors.js";
 import {
   createJob,
+  deleteJob,
   getJob,
   getJobVacancies,
   listJobs,
   startJob,
   stopJob,
+  updateJob,
 } from "./crawler-jobs.service.js";
-import { createJobSchema } from "./crawler-jobs.schemas.js";
+import { createJobSchema, updateJobSchema } from "./crawler-jobs.schemas.js";
 
 function parseJobId(req: Request, res: Response): number | undefined {
   const id = Number(req.params.id);
@@ -86,6 +88,36 @@ export async function getVacancies(req: Request, res: Response): Promise<void> {
   try {
     const vacancies = await getJobVacancies(req.userId!, id);
     res.status(200).json({ vacancies });
+  } catch (error) {
+    handleError(res, error, "crawler-jobs");
+  }
+}
+
+export async function patchJob(req: Request, res: Response): Promise<void> {
+  const id = parseJobId(req, res);
+  if (id === undefined) return;
+
+  const parsed = updateJobSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
+    return;
+  }
+
+  try {
+    const job = await updateJob(req.userId!, id, parsed.data);
+    res.status(200).json({ job });
+  } catch (error) {
+    handleError(res, error, "crawler-jobs");
+  }
+}
+
+export async function deleteJobHandler(req: Request, res: Response): Promise<void> {
+  const id = parseJobId(req, res);
+  if (id === undefined) return;
+
+  try {
+    await deleteJob(req.userId!, id);
+    res.status(204).send();
   } catch (error) {
     handleError(res, error, "crawler-jobs");
   }
