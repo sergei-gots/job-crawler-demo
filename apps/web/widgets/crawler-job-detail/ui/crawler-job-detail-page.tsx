@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { useJobActions } from "@/features/run-job";
+import { useCrawlerJobActions } from "@/features/run-crawler-job";
 import { useRequireAuth } from "@/entities/session";
-import { getJob, type Job, type JobWithLogs } from "@/entities/job";
+import { getCrawlerJob, type CrawlerJob, type CrawlerJobWithLogs } from "@/entities/crawler-job";
 import { ApiError } from "@/shared/lib/api";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
@@ -12,22 +12,22 @@ import { StatusBadge } from "@/shared/ui/status-badge";
 
 const POLL_INTERVAL_MS = 2000;
 
-export function JobDetailPage({ jobId }: { jobId: number }) {
+export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
   const { token, handleUnauthorized } = useRequireAuth();
-  const [job, setJob] = useState<JobWithLogs | null>(null);
+  const [job, setJob] = useState<CrawlerJobWithLogs | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadJob = useCallback(async () => {
     if (!token) return;
     try {
-      const result = await getJob(jobId, token);
+      const result = await getCrawlerJob(jobId, token);
       setJob(result);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         handleUnauthorized();
         return;
       }
-      setLoadError("Failed to load job");
+      setLoadError("Failed to load crawler job");
     }
   }, [token, jobId, handleUnauthorized]);
 
@@ -42,18 +42,18 @@ export function JobDetailPage({ jobId }: { jobId: number }) {
     return () => clearInterval(interval);
   }, [job?.status, loadJob]);
 
-  const applyStarted = useCallback((updated: Job) => {
+  const applyStarted = useCallback((updated: CrawlerJob) => {
     // The server clears JobLog history when a run (re)starts; reflect that immediately instead
     // of waiting for the next poll. Subsequent log lines arrive via the RUNNING poll above.
     setJob((prev) => (prev ? { ...prev, ...updated, logs: [] } : prev));
   }, []);
 
-  const { start, stop, pendingId, error: actionError } = useJobActions({
+  const { start, stop, pendingId, error: actionError } = useCrawlerJobActions({
     token,
     handleUnauthorized,
     onStarted: applyStarted,
     // Stopping leaves RUNNING, so the poll above won't fire again to pick up the final
-    // "Stopped by user" log line — refetch once to show it instead of merging the bare Job.
+    // "Stopped by user" log line — refetch once to show it instead of merging the bare CrawlerJob.
     onStopped: () => loadJob(),
   });
 
@@ -65,8 +65,8 @@ export function JobDetailPage({ jobId }: { jobId: number }) {
   return (
     <main className="flex flex-1 justify-start p-4 md:p-8">
       <div className="flex w-full max-w-3xl flex-col gap-6">
-        <Link href="/jobs" className="text-sm text-muted-foreground hover:underline">
-          &larr; Back to jobs
+        <Link href="/crawler-jobs" className="text-sm text-muted-foreground hover:underline">
+          &larr; Back to crawler jobs
         </Link>
         {error && <p className="text-sm text-red-500">{error}</p>}
         {!job ? (

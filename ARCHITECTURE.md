@@ -18,35 +18,37 @@
    │                                       │            └─ Axios/Cheerio
    │                                       ├─▶ ai (AIEnricher)        │
    │                                       └─▶ search (Coveo-like)    │
-   │                    workers (job runner / queue consumer)         │
+   │                    workers (crawler job runner / queue consumer) │
    └───┬───────────────┬─────────────────┬────────────────┬─────────┘
        │               │                 │                │
        ▼               ▼                 ▼                ▼
-  PostgreSQL        Redis          Elasticsearch      Claude API
-  (users, jobs,   (rate limit,   (crawled results,   (enrichment,
-   job logs)       job queue)      search index)       mocked first)
+     PostgreSQL          Redis          Elasticsearch      Claude API
+  (users, crawler   (rate limit,     (crawled results,   (enrichment,
+   jobs, crawler     crawler job       search index)       mocked first)
+   job logs)          queue)
 ```
 
 ## Data flow (one crawler job)
 
 > **Increment 1 status:** steps 1–2 and 4 below are implemented. Step 3 (the actual crawl) is
-> currently a **mock in-process runner** (`apps/api/src/jobs/jobs.runner.ts`) that writes timed
-> `JobLog` rows and flips the job status — no real Redis queue, `robots.txt` check,
+> currently a **mock in-process runner** (`apps/api/src/crawler-jobs/crawler-jobs.runner.ts`) that
+> writes timed `JobLog` rows and flips the crawler job status — no real Redis queue, `robots.txt` check,
 > Axios/Cheerio/Puppeteer fetch, AI enrichment, or Elasticsearch indexing yet. Step 5 (search) is
 > not implemented. This section describes the target end-state; see `.claude/features/
 > FEATIRE_SOURCES_AND_JOBS.md` for what's real today.
 
 1. User creates a **CrawlerJob** (name, sources, keywords) → stored in PostgreSQL.
-2. User starts the job → a task is enqueued in **Redis**; status → `RUNNING`.
+2. User starts the crawler job → a task is enqueued in **Redis**; status → `RUNNING`.
 3. A **worker** picks it up, and for each selected source:
    - checks `robots.txt` and applies **Redis** rate limiting (using that `CrawlSource`'s own
-     `defaultDelayMs` — crawl strategy and pacing are per-source, not configurable per job),
+     `defaultDelayMs` — crawl strategy and pacing are per-source, not configurable per crawler job),
    - fetches pages with **Axios/Cheerio** (or **Puppeteer**, depending on that source's `type`),
    - parses postings into raw **CrawlerResult** objects,
    - passes each through the **AIEnricher** (mock → real Claude) for summary/skills/category,
    - indexes the enriched result into **Elasticsearch**,
    - writes progress + **JobLog** lines to PostgreSQL.
-4. Job finishes → status → `COMPLETED` (or `FAILED` if it errored, `STOPPED` if the user stopped it).
+4. Crawler job finishes → status → `COMPLETED` (or `FAILED` if it errored, `STOPPED` if the user
+   stopped it).
 5. User searches results via the **Coveo-like layer** (facets + relevance) over Elasticsearch.
 
 ## Storage responsibilities
@@ -55,7 +57,7 @@
 |----------------|----------------------------------------------------------------|
 | PostgreSQL     | `User`, `CrawlerJob`, `JobLog` (relational, source of truth)   |
 | Elasticsearch  | `CrawlerResult` (crawled + enriched data, search index)        |
-| Redis          | Rate-limit counters, job queue, transient job state, caching   |
+| Redis          | Rate-limit counters, crawler job queue, transient crawler job state, caching |
 
 ## Data models
 
@@ -100,7 +102,7 @@
 | Field          | Type        | Notes                                    |
 |----------------|-------------|------------------------------------------|
 | id             | string (PK) |                                          |
-| jobId          | string      | which job produced it                    |
+| jobId          | string      | which crawler job produced it            |
 | userId         | string      | ownership (for filtered search)          |
 | source         | string      | source key                               |
 | sourceUrl      | string      | original posting URL                     |
@@ -121,7 +123,7 @@
 | Field      | Type                  | Notes                            |
 |------------|-----------------------|-----------------------------------|
 | id         | int (PK)              | autoincrement                    |
-| jobId      | int (FK → CrawlerJob.id) | ownership checked via the job's `userId` |
+| jobId      | int (FK → CrawlerJob.id) | ownership checked via the crawler job's `userId` |
 | level      | enum                  | `INFO`,`WARN`,`ERROR`            |
 | message    | string                |                                   |
 | createdAt  | timestamp             |                                   |
@@ -130,7 +132,7 @@
 
 - **`CrawlStrategy`** — `crawl(source, job): Promise<RawResult[]>`; implementations:
   `AxiosCheerioStrategy`, `PuppeteerStrategy`. Chosen per source via `CrawlSource.type`
-  (`STATIC` → Axios/Cheerio, `DYNAMIC` → Puppeteer) — not configurable per job.
+  (`STATIC` → Axios/Cheerio, `DYNAMIC` → Puppeteer) — not configurable per crawler job.
 - **`AIEnricher`** — `enrich(raw): Promise<Enrichment>`; implementations:
   `MockAIEnricher` (now), `ClaudeEnricher` (later). Swapped via config/env.
 - **`SearchService`** (Coveo-like) — `search(query, facets, sort): Promise<SearchResponse>`

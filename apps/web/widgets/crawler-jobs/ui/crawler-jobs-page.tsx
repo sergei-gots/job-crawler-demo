@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { CreateJobForm } from "@/features/create-crawler-job";
-import { useJobActions } from "@/features/run-job";
+import { useCrawlerJobActions } from "@/features/run-crawler-job";
 import { useRequireAuth } from "@/entities/session";
-import { getJobs, type Job } from "@/entities/job";
+import { getCrawlerJobs, type CrawlerJob } from "@/entities/crawler-job";
 import { getSources, type Source } from "@/entities/source";
 import { ApiError } from "@/shared/lib/api";
 import { Button } from "@/shared/ui/button";
@@ -15,9 +15,9 @@ import { StatusBadge } from "@/shared/ui/status-badge";
 
 const POLL_INTERVAL_MS = 2000;
 
-export function JobsPage() {
+export function CrawlerJobsPage() {
   const { token, handleUnauthorized } = useRequireAuth();
-  const [jobs, setJobs] = useState<Job[] | null>(null);
+  const [jobs, setJobs] = useState<CrawlerJob[] | null>(null);
   const [sources, setSources] = useState<Source[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -35,10 +35,10 @@ export function JobsPage() {
   const loadJobs = useCallback(async () => {
     if (!token) return;
     try {
-      const result = await getJobs(token);
+      const result = await getCrawlerJobs(token);
       setJobs(result);
     } catch (err) {
-      handleAuthError(err, "Failed to load jobs");
+      handleAuthError(err, "Failed to load crawler jobs");
     }
   }, [token, handleAuthError]);
 
@@ -64,11 +64,11 @@ export function JobsPage() {
     return () => clearInterval(interval);
   }, [hasRunningJob, loadJobs]);
 
-  const patchJob = useCallback((updated: Job) => {
+  const patchJob = useCallback((updated: CrawlerJob) => {
     setJobs((prev) => (prev ? prev.map((job) => (job.id === updated.id ? updated : job)) : prev));
   }, []);
 
-  const { start, stop, pendingId, error: actionError } = useJobActions({
+  const { start, stop, pendingId, error: actionError } = useCrawlerJobActions({
     token,
     handleUnauthorized,
     onStarted: patchJob,
@@ -87,13 +87,13 @@ export function JobsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Your jobs</CardTitle>
+            <CardTitle>Your crawler jobs</CardTitle>
           </CardHeader>
           <CardContent>
             {!jobs ? (
               <p className="text-sm text-muted-foreground">Loading...</p>
             ) : jobs.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No jobs yet. Create one below.</p>
+              <p className="text-sm text-muted-foreground">No crawler jobs yet. Create one below.</p>
             ) : (
               <div className="flex flex-col gap-2">
                 {jobs.map((job) => (
@@ -103,7 +103,7 @@ export function JobsPage() {
                   >
                     <div className="flex min-w-0 flex-1 items-center gap-3">
                       <Link
-                        href={`/jobs/${job.id}`}
+                        href={`/crawler-jobs/${job.id}`}
                         title={job.description ?? undefined}
                         className="truncate text-sm font-medium hover:underline"
                       >

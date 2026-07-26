@@ -20,15 +20,17 @@ data models and component design.
 - Sources & Crawler Jobs (Increment 1, see `.claude/features/FEATIRE_SOURCES_AND_JOBS.md`):
   `CrawlSource`, `CrawlerJob`, `JobLog` Prisma models, seeded with four sources (Habr Career,
   RemoteOK, WeWorkRemotely, Craigslist — matches `CLAUDE.md` → Data Sources). Endpoints: `GET /sources`,
-  `GET /sources/:id`, `GET /jobs`, `POST /jobs`, `GET /jobs/:id`, `POST /jobs/:id/start`,
-  `POST /jobs/:id/stop` (all user-scoped, behind JWT auth). Frontend: `entities/source`,
-  `entities/job`, `features/create-crawler-job`, `features/run-job`, `widgets/sources`,
-  `widgets/jobs`, `widgets/job-detail`, plus `/sources`, `/jobs`, `/jobs/[id]` pages.
-  **Start/Stop currently runs a mock in-process runner** (`apps/api/src/jobs/jobs.runner.ts`)
-  that simulates progress by writing timed `JobLog` rows and flipping job status — there is no
-  real Puppeteer/Cheerio crawling, `robots.txt` handling, or Redis rate limiting yet.
+  `GET /sources/:id`, `GET /crawler-jobs`, `POST /crawler-jobs`, `GET /crawler-jobs/:id`,
+  `POST /crawler-jobs/:id/start`, `POST /crawler-jobs/:id/stop` (all user-scoped, behind JWT
+  auth). Frontend: `entities/source`, `entities/crawler-job`, `features/create-crawler-job`,
+  `features/run-crawler-job`, `widgets/sources`, `widgets/crawler-jobs`,
+  `widgets/crawler-job-detail`, plus `/sources`, `/crawler-jobs`, `/crawler-jobs/[id]` pages.
+  **Start/Stop currently runs a mock in-process runner**
+  (`apps/api/src/crawler-jobs/crawler-jobs.runner.ts`) that simulates progress by writing timed
+  `JobLog` rows and flipping crawler job status — there is no real Puppeteer/Cheerio crawling,
+  `robots.txt` handling, or Redis rate limiting yet.
 
-Not yet implemented: real crawler execution, Redis rate limiting/job state, Elasticsearch
+Not yet implemented: real crawler execution, Redis rate limiting/crawler job state, Elasticsearch
 storage + search UI, AI enrichment. Track progress against the MVP plan in `CLAUDE.md` → User
 Stories.
 

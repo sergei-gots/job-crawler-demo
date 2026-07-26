@@ -1,8 +1,8 @@
 import type { CrawlerJob, JobLog } from "@prisma/client";
 import { prisma } from "../config/prisma.js";
 import { ApiError } from "../utils/errors.js";
-import type { CreateJobInput } from "./jobs.schemas.js";
-import { startMockRun, stopMockRun } from "./jobs.runner.js";
+import type { CreateJobInput } from "./crawler-jobs.schemas.js";
+import { startMockRun, stopMockRun } from "./crawler-jobs.runner.js";
 
 export function listJobs(userId: string): Promise<CrawlerJob[]> {
   return prisma.crawlerJob.findMany({ where: { userId }, orderBy: { createdAt: "desc" } });
@@ -17,7 +17,7 @@ export async function getJob(
     include: { logs: { orderBy: { createdAt: "asc" } } },
   });
   if (!job) {
-    throw new ApiError(404, "Job not found");
+    throw new ApiError(404, "Crawler job not found");
   }
   return job;
 }
@@ -42,7 +42,7 @@ export async function createJob(userId: string, input: CreateJobInput): Promise<
 async function getOwnedJobOrThrow(userId: string, id: number): Promise<CrawlerJob> {
   const job = await prisma.crawlerJob.findFirst({ where: { id, userId } });
   if (!job) {
-    throw new ApiError(404, "Job not found");
+    throw new ApiError(404, "Crawler job not found");
   }
   return job;
 }
@@ -51,7 +51,7 @@ export async function startJob(userId: string, id: number): Promise<CrawlerJob> 
   const job = await getOwnedJobOrThrow(userId, id);
 
   if (job.status === "RUNNING") {
-    throw new ApiError(400, "Job is already running");
+    throw new ApiError(400, "Crawler job is already running");
   }
 
   const sourceIds = job.sources as number[];
@@ -66,7 +66,7 @@ export async function startJob(userId: string, id: number): Promise<CrawlerJob> 
     data: { status: "RUNNING", lastRunAt: new Date() },
   });
   if (count === 0) {
-    throw new ApiError(400, "Job is already running");
+    throw new ApiError(400, "Crawler job is already running");
   }
 
   await startMockRun(id, sources);
@@ -78,7 +78,7 @@ export async function stopJob(userId: string, id: number): Promise<CrawlerJob> {
   const job = await getOwnedJobOrThrow(userId, id);
 
   if (job.status !== "RUNNING") {
-    throw new ApiError(400, "Job is not running");
+    throw new ApiError(400, "Crawler job is not running");
   }
 
   stopMockRun(id);
@@ -91,7 +91,7 @@ export async function stopJob(userId: string, id: number): Promise<CrawlerJob> {
     data: { status: "STOPPED" },
   });
   if (count === 0) {
-    throw new ApiError(400, "Job is not running");
+    throw new ApiError(400, "Crawler job is not running");
   }
 
   await prisma.jobLog.create({ data: { jobId: id, message: "Stopped by user" } });

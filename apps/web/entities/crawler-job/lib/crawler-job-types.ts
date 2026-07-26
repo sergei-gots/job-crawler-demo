@@ -1,6 +1,6 @@
-export type JobStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "STOPPED";
+export type CrawlerJobStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "STOPPED";
 
-export interface JobLog {
+export interface CrawlerJobLog {
   id: number;
   jobId: number;
   level: "INFO" | "WARN" | "ERROR";
@@ -8,19 +8,19 @@ export interface JobLog {
   createdAt: string;
 }
 
-export interface Job {
+export interface CrawlerJob {
   id: number;
   userId: string;
   name: string;
   description: string | null;
   sources: number[];
   keywords: string | null;
-  status: JobStatus;
+  status: CrawlerJobStatus;
   lastRunAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface JobWithLogs extends Job {
-  logs: JobLog[];
+export interface CrawlerJobWithLogs extends CrawlerJob {
+  logs: CrawlerJobLog[];
 }
