@@ -129,6 +129,7 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
                               href={source.baseUrl}
                               target="_blank"
                               rel="noopener noreferrer"
+                              title={source.baseUrl}
                               className="text-link hover:underline"
                             >
                               {source.name}
