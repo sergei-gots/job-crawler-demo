@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
 import { redis } from "./redisClient.js";
 
-const PAGE_CACHE_TTL_SECONDS = 300;
+// Vacancy listings don't change second-to-second, and this cache exists to spare the source
+// from duplicate near-simultaneous requests (not to guarantee freshness) — 15 minutes is plenty.
+const PAGE_CACHE_TTL_SECONDS = 900;
 
 export interface CachedPage {
   html: string;
