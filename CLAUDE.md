@@ -230,6 +230,13 @@ requires them.
 - **`Card` uses a real border, not a faint ring.** `border-2 border-border` (token `--border:
   oklch(0.85 0 0)` in light theme) — bumped up from the original near-invisible `ring-1
   ring-foreground/10` so cards visibly separate from the page background and from each other.
+- **External/navigational links use the `text-link` utility, not a raw color or bare `<a>`.**
+  Backed by a dedicated `--link` token (`oklch(0.42 0.14 258)` light theme — a muted dark blue, not
+  the default-browser bright blue) so a link reads as a link without competing with `--primary`'s
+  grayscale button hierarchy above. This is the first chromatic (non-grayscale) token in the
+  palette — deliberate, to keep links visually distinct from every other UI signal, which are all
+  achromatic. Pair with `hover:underline`. First use: the Sources table's Base URL column
+  (`widgets/sources/ui/sources-page.tsx`).
 
 ## Testing Philosophy
 
