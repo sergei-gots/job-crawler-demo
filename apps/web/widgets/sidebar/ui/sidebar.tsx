@@ -13,7 +13,7 @@ import { Card, CardContent } from "@/shared/ui/card";
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/sources", label: "Sources" },
-  { href: "/jobs", label: "Jobs" },
+  { href: "/crawler-jobs", label: "Crawler Jobs" },
   { href: "/profile", label: "Profile" },
 ];
 

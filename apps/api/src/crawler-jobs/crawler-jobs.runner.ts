@@ -32,7 +32,7 @@ export async function startMockRun(jobId: number, sources: CrawlSource[]): Promi
   let step = 0;
   const stepMs = 1200;
 
-  scheduleLog(jobId, (step += 1) * stepMs, "Job started", timers);
+  scheduleLog(jobId, (step += 1) * stepMs, "Crawler job started", timers);
   for (const source of sources) {
     // The mock timer cadence stays fixed (stepMs) so demo runs finish quickly; the source's
     // own type/defaultDelayMs are surfaced here to show they drive per-source crawl behavior
@@ -53,13 +53,13 @@ export async function startMockRun(jobId: number, sources: CrawlSource[]): Promi
         try {
           // Status-conditioned update, mirroring stopJob's own conditioned write: if the job was
           // already stopped by the user before this timer fired, this affects 0 rows and we skip
-          // appending a "Job completed" log that would contradict the STOPPED status.
+          // appending a "Crawler job completed" log that would contradict the STOPPED status.
           const { count } = await prisma.crawlerJob.updateMany({
             where: { id: jobId, status: "RUNNING" },
             data: { status: "COMPLETED" },
           });
           if (count > 0) {
-            await prisma.jobLog.create({ data: { jobId, message: "Job completed" } });
+            await prisma.jobLog.create({ data: { jobId, message: "Crawler job completed" } });
           }
         } catch (error) {
           logger.error(`Failed to finish mock job run: ${String(error)}`);

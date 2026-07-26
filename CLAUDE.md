@@ -15,12 +15,12 @@ Create a clean, well-structured MVP that demonstrates the full tech stack: TypeS
 - **TypeScript + Node.js + Express** — Core backend and REST API
 - **Puppeteer** — Crawling JavaScript-rendered pages (chosen per source, via `CrawlSource.type`)
 - **Axios + Cheerio** — Fast static page crawling
-- **PostgreSQL** — Store users, Crawler Jobs, job logs, settings
-- **Redis** — Rate limiting, simple job queue/state, caching
+- **PostgreSQL** — Store users, Crawler Jobs, crawler job logs, settings
+- **Redis** — Rate limiting, simple crawler job queue/state, caching
 - **Elasticsearch** — Main storage and search engine for crawled results
 - **Coveo-like layer** — Light abstraction above Elasticsearch that mimics a Coveo-style
   search experience (facets, relevance sorting). Saved searches are **out of scope for MVP**.
-- **JWT Authentication** — User registration, login and ownership of jobs/results
+- **JWT Authentication** — User registration, login and ownership of crawler jobs/results
 - **Claude API** — AI enrichment (summarization, skill extraction, categorization).
   Start with a `MockAIEnricher`; wire the real API (key in `.env`) in a later stage.
 - **Winston** — Structured logging
@@ -56,14 +56,15 @@ and `weworkremotely` above.
 `CrawlStrategy` adapters if time allows, without changing the crawler architecture.
 
 All four are already seeded as `CrawlSource` rows (`apps/api/prisma/seed.ts`) so they're
-selectable from the Sources/Jobs UI, but no `CrawlStrategy` reads them yet — Increment 1's
-`POST /jobs/:id/start` runs a **mock in-process runner** (see `apps/api/src/jobs/jobs.runner.ts`
-and `.claude/features/FEATIRE_SOURCES_AND_JOBS.md`), not a real crawl of any source.
+selectable from the Sources/Crawler Jobs UI, but no `CrawlStrategy` reads them yet — Increment 1's
+`POST /crawler-jobs/:id/start` runs a **mock in-process runner** (see
+`apps/api/src/crawler-jobs/crawler-jobs.runner.ts` and
+`.claude/features/FEATIRE_SOURCES_AND_JOBS.md`), not a real crawl of any source.
 
 For each source we define: `type` (`STATIC`/`DYNAMIC` — determines Axios+Cheerio vs Puppeteer),
 `defaultDelayMs`, base URL, and (eventually) the CSS selectors/fields to parse. This lives on the
-`CrawlSource`, not the job — a job just picks which sources to run against. Always respect the
-site's `robots.txt` and apply rate limiting.
+`CrawlSource`, not the Crawler Job — a Crawler Job just picks which sources to run against. Always
+respect the site's `robots.txt` and apply rate limiting.
 
 ## Coding Standards
 
@@ -114,15 +115,15 @@ As a user I can:
 1. Register and log in (JWT Authentication)
 2. View a list of predefined data sources (see Data Sources above)
 3. Create a new Crawler Job:
-   - Job name
+   - Crawler Job name
    - Select data sources
    - Define keywords/filters
-   - (Crawl strategy and delay are not job-level settings — they come from each selected
+   - (Crawl strategy and delay are not Crawler-Job-level settings — they come from each selected
      `CrawlSource`'s own `type`/`defaultDelayMs`.)
 4. Start / Stop my Crawler Jobs
-5. See the status and progress of my jobs
+5. See the status and progress of my Crawler Jobs
 6. Search through collected data using Elasticsearch (Coveo-like facets + relevance)
-7. View execution logs for each job
+7. View execution logs for each Crawler Job
 8. Receive AI-enriched summaries of crawled content
 
 ## Data Models (summary)
@@ -141,7 +142,8 @@ Full field definitions live in `ARCHITECTURE.md`. Core entities:
 - Russian can only be used in personal development notes (`.notes/`, git-ignored).
 - Every Crawler Job belongs to a specific `userId`.
 - Respect `robots.txt` and implement rate limiting (via Redis).
-- Puppeteer vs Axios/Cheerio is chosen per source (`CrawlSource.type`), never a per-job setting.
+- Puppeteer vs Axios/Cheerio is chosen per source (`CrawlSource.type`), never a per-Crawler-Job
+  setting.
 - AI enrichment goes through an interface; ship a `MockAIEnricher` first, real Claude API later.
 - Keep the architecture modular and easy to extend.
 - Prefer simplicity for MVP (avoid over-engineering).
@@ -155,7 +157,7 @@ This application is a crawler management console.
 
 Prioritize:
 - clarity of workflows over visual decoration
-- showing job status and progress
+- showing crawler job status and progress
 - clear distinction between configuration and results
 - operational information visibility
 
@@ -211,7 +213,7 @@ requires them.
   | Level | Variant | Look | Used for |
   | --- | --- | --- | --- |
   | Primary action | `variant="default"` (`shared/ui/button.tsx`) | Medium-dark gray fill (`--primary: oklch(0.55 0 0)`), light text — deliberately *not* near-black | Main CTA per screen: Login, Register, Create job, Update profile |
-  | Secondary action | `variant="secondary"` | Clearly gray fill (`--secondary: oklch(0.9 0 0)`), dark text — must read as visibly gray against a white `Card`, not blend into it | In-context actions on an existing item: Start / Stop a job |
+  | Secondary action | `variant="secondary"` | Clearly gray fill (`--secondary: oklch(0.9 0 0)`), dark text — must read as visibly gray against a white `Card`, not blend into it | In-context actions on an existing item: Start / Stop a crawler job |
 
   Both colors are tokens in `app/globals.css` (`:root` block, light theme) — tune brightness there,
   not per-component. `--primary` went through several rounds of manual eyeballing (`0.205` too
@@ -275,13 +277,13 @@ Monorepo with two apps:
       /models          # Postgres models / repositories
       /routes
       /utils
-      /workers         # job runner / queue consumers
+      /workers         # crawler job runner / queue consumers
       /types
   /web                 # Next.js frontend (FSD)
     /app               # routing only
-    /widgets           # dashboard, job-list, search, sidebar
-    /features          # auth, create-crawler-job, run-job, search
-    /entities          # session, user, job, result
+    /widgets           # dashboard, crawler-jobs, search, sidebar
+    /features          # auth, create-crawler-job, run-crawler-job, search
+    /entities          # session, user, crawler-job, result
     /shared            # ui/, lib/ (api client)
 /docker                # docker-compose + service configs
 ```

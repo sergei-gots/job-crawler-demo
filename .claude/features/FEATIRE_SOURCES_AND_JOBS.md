@@ -8,18 +8,19 @@ This feature implements management of predefined crawling sources and user-speci
 
 ## Status
 
-**Increment 1 — implemented.** Data models, seed, the Sources (read-only) and Jobs (CRUD +
+**Increment 1 — implemented.** Data models, seed, the Sources (read-only) and Crawler Jobs (CRUD +
 start/stop) API modules, and the corresponding frontend pages are in place. Start/Stop is backed
-by a **mock in-process runner** (`apps/api/src/jobs/jobs.runner.ts`): it simulates progress by
-writing timed `JobLog` rows and flipping the job status — there is **no real Puppeteer/Cheerio
-crawling, `robots.txt` handling, Redis rate limiting/job state, AI enrichment, or Elasticsearch
-storage yet**. `GET /api/search` is not implemented. These are deferred to later increments; the
-sections below describe the eventual full scope, with notes marking what's already real.
+by a **mock in-process runner** (`apps/api/src/crawler-jobs/crawler-jobs.runner.ts`): it simulates
+progress by writing timed `JobLog` rows and flipping the crawler job status — there is **no real
+Puppeteer/Cheerio crawling, `robots.txt` handling, Redis rate limiting/crawler job state, AI
+enrichment, or Elasticsearch storage yet**. `GET /api/search` is not implemented. These are
+deferred to later increments; the sections below describe the eventual full scope, with notes
+marking what's already real.
 
 ## Tech Stack
 
 - Backend: Node.js + TypeScript + Express + Prisma + PostgreSQL
-- Redis: Rate limiting and temporary job state
+- Redis: Rate limiting and temporary crawler job state
 - Elasticsearch: For storing and searching crawl results (future)
 - Frontend: React (following Expense Tracker structure with Sidebar)
 - Authentication: JWT
@@ -71,7 +72,7 @@ enum JobStatus {
   RUNNING
   COMPLETED
   FAILED
-  STOPPED   // set by POST /jobs/:id/stop — distinct from FAILED (a real crawl error)
+  STOPPED   // set by POST /crawler-jobs/:id/stop — distinct from FAILED (a real crawl error)
 }
 
 model JobLog {
@@ -113,8 +114,8 @@ Not wired in Increment 1; the mock runner needs no queue or rate limiting. Keys 
 real crawling lands:
 
 - Rate limiting: rate:domain:{domainName} (value: counter, TTL 60s)
-- Job state: job:status:{jobId} (JSON with status, progress)
-- Active job lock: job:active:{userId}:{jobId} (TTL = job timeout)
+- Crawler job state: job:status:{jobId} (JSON with status, progress)
+- Active crawler job lock: job:active:{userId}:{jobId} (TTL = crawler job timeout)
 
 ### 4. API Endpoints (Backend)
 
@@ -123,13 +124,13 @@ Sources — implemented (mounted at `/sources`, not `/api/sources`; the API has 
 - GET /sources → list all available sources
 - GET /sources/:id → source details
 
-Jobs — implemented (mounted at `/jobs`):
+Crawler Jobs — implemented (mounted at `/crawler-jobs`):
 
-- GET /jobs → user's jobs
-- POST /jobs → create new job
-- GET /jobs/:id → job details + logs
-- POST /jobs/:id/start → start crawling (mock runner in Increment 1)
-- POST /jobs/:id/stop → stop job (cancels the mock runner's pending timers)
+- GET /crawler-jobs → user's crawler jobs
+- POST /crawler-jobs → create new crawler job
+- GET /crawler-jobs/:id → crawler job details + logs
+- POST /crawler-jobs/:id/start → start crawling (mock runner in Increment 1)
+- POST /crawler-jobs/:id/stop → stop crawler job (cancels the mock runner's pending timers)
 
 Results — deferred (no Elasticsearch integration yet):
 
@@ -137,26 +138,26 @@ Results — deferred (no Elasticsearch integration yet):
 
 ## 5. User Flow (Frontend)
 
-User logs in → sees Sidebar (Dashboard, Jobs, Sources, Profile)
+User logs in → sees Sidebar (Dashboard, Sources, Crawler Jobs, Profile)
 Goes to Sources page → sees table of predefined sources with "Type" column (Puppeteer / Axios)
-Goes to Jobs page → clicks "Create Job"
+Goes to Crawler Jobs page → uses the "Create crawler job" form
 
 In form:
 
-- Job name
+- Crawler job name
 - Multi-select sources
 - Keywords input
 - Optional config (delay, etc.)
 
-Submits → job created (status PENDING)
-User clicks "Start" → job moves to RUNNING, logs start appearing
+Submits → crawler job created (status PENDING)
+User clicks "Start" → crawler job moves to RUNNING, logs start appearing
 User can view live logs and later search results
 
 ## 6. Implementation Steps
 
 - [x] Implement Prisma models
 - [x] Create backend controllers and services
-- [x] Build React pages (Jobs + Sources)
+- [x] Build React pages (Crawler Jobs + Sources)
 - [ ] Integrate Redis for rate limiting (deferred — see §3)
-- [ ] Replace the mock runner with real crawling (Axios/Cheerio + Puppeteer per `usePuppeteer`)
+- [ ] Replace the mock runner with real crawling (Axios/Cheerio + Puppeteer per `CrawlSource.type`)
 - [ ] AI enrichment + Elasticsearch storage + `GET /api/search`

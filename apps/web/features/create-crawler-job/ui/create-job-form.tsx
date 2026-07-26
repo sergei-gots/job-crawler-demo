@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import type { Job } from "@/entities/job";
+import type { CrawlerJob } from "@/entities/crawler-job";
 import type { Source } from "@/entities/source";
 import { ApiError } from "@/shared/lib/api";
 import { Button } from "@/shared/ui/button";
@@ -16,7 +16,7 @@ import { createJobSchema, type CreateJobFormValues } from "../model/create-job-s
 interface CreateJobFormProps {
   sources: Source[];
   token: string;
-  onCreated: (job: Job) => void;
+  onCreated: (job: CrawlerJob) => void;
 }
 
 export function CreateJobForm({ sources, token, onCreated }: CreateJobFormProps) {
