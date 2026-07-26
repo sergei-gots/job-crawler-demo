@@ -134,7 +134,7 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
                     disabled={actionPending}
                     onClick={() => start(jobId)}
                   >
-                    Start
+                    {job.status === "PENDING" ? "Start" : "Restart"}
                   </Button>
                 )}
               </CardContent>
