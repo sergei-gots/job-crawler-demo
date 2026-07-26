@@ -11,27 +11,48 @@ See `CLAUDE.md` for the full spec and `ARCHITECTURE.md` for data models and comp
 - Monorepo scaffold (npm workspaces): `apps/api` (Express) + `apps/web` (Next.js).
 - `apps/api`: Express + TypeScript server, Winston logging, `GET /health`.
 - PostgreSQL via Docker Compose, Prisma ORM, `User` model (email, password hash, optional name).
-- JWT auth: `POST /auth/register`, `POST /auth/login`, `GET /auth/me`.
-- Profile management: `PATCH /users/me` (name + email, requires current password),
-  `PATCH /users/me/password`.
-- `apps/web`: Next.js (App Router, TypeScript, Tailwind), Feature-Sliced Design layers
-  (`entities/session`, `entities/user`, `features/auth`, `features/profile`,
-  `widgets/sidebar`, `widgets/dashboard`, `widgets/profile`) — login/register pages, a
-  protected dashboard stub, and a profile page (edit name, change password).
+- JWT auth:
+  - `POST /auth/register`
+  - `POST /auth/login`
+  - `GET /auth/me`
+- Profile management:
+  - `PATCH /users/me` (name + email, requires current password)
+  - `PATCH /users/me/password`
+- `apps/web`: Next.js (App Router, TypeScript, Tailwind), Feature-Sliced Design. Layers so far:
+  - `entities/session`, `entities/user`
+  - `features/auth`, `features/profile`
+  - `widgets/sidebar`, `widgets/dashboard`, `widgets/profile`
 
-**Sources & Crawler Jobs — Increment 1** (see `.claude/features/FEATIRE_SOURCES_AND_JOBS.md`):
+  Pages: login/register, a protected dashboard stub, and a profile page (edit name, change
+  password).
 
-- `CrawlSource`, `CrawlerJob`, `JobLog` Prisma models, seeded with four sources (Habr Career,
-  RemoteOK, WeWorkRemotely, Craigslist — matches `CLAUDE.md` → Data Sources).
-- Endpoints: `GET /sources`, `GET /sources/:id`, `GET /crawler-jobs`, `POST /crawler-jobs`,
-  `GET /crawler-jobs/:id`, `POST /crawler-jobs/:id/start`, `POST /crawler-jobs/:id/stop` (all
-  user-scoped, behind JWT auth).
-- Frontend: `entities/source`, `entities/crawler-job`, `features/create-crawler-job`,
-  `features/run-crawler-job`, `widgets/sources`, `widgets/crawler-jobs`,
-  `widgets/crawler-job-detail`, plus `/sources`, `/crawler-jobs`, `/crawler-jobs/[id]` pages.
+### Sources & Crawler Jobs — Increment 1
 
-**Real crawler + Redis + minimal Elasticsearch — Increment 2** (see
-`.claude/features/FEATURE_REAL_CRAWLER_REDIS_ES.md`):
+See `.claude/features/FEATIRE_SOURCES_AND_JOBS.md`.
+
+- Prisma models: `CrawlSource`, `CrawlerJob`, `JobLog`.
+- Seeded with four sources (matches `CLAUDE.md` → Data Sources):
+  - Habr Career
+  - RemoteOK
+  - WeWorkRemotely
+  - Craigslist
+- Endpoints (all user-scoped, behind JWT auth):
+  - `GET /sources`
+  - `GET /sources/:id`
+  - `GET /crawler-jobs`
+  - `POST /crawler-jobs`
+  - `GET /crawler-jobs/:id`
+  - `POST /crawler-jobs/:id/start`
+  - `POST /crawler-jobs/:id/stop`
+- Frontend:
+  - `entities/source`, `entities/crawler-job`
+  - `features/create-crawler-job`, `features/run-crawler-job`
+  - `widgets/sources`, `widgets/crawler-jobs`, `widgets/crawler-job-detail`
+  - Pages: `/sources`, `/crawler-jobs`, `/crawler-jobs/[id]`
+
+### Real crawler + Redis + minimal Elasticsearch — Increment 2
+
+See `.claude/features/FEATURE_REAL_CRAWLER_REDIS_ES.md`.
 
 - `POST /crawler-jobs/:id/start` runs a real Axios+Cheerio crawl of `career.habr.com` — the only
   source with a parser so far (Puppeteer turned out unnecessary; see the doc's spike notes).
@@ -40,13 +61,19 @@ See `CLAUDE.md` for the full spec and `ARCHITECTURE.md` for data models and comp
   cache.
 - Elasticsearch (`apps/api/src/search/`) stores parsed vacancies, deduplicated by
   `sourceId:externalId`.
-- New read endpoints: `GET /sources/:id/vacancies`, `GET /crawler-jobs/:id/vacancies`, plus a
-  simple vacancy list on the crawler job detail page — see "Checking crawled data" below.
+- New read endpoints:
+  - `GET /sources/:id/vacancies`
+  - `GET /crawler-jobs/:id/vacancies`
+- A simple vacancy list on the crawler job detail page — see "Checking crawled data" below.
 - No AI enrichment and no Coveo-like search/facet UI yet.
 
-Not yet implemented: AI enrichment, Coveo-like search/facet UI, additional source parsers
-(RemoteOK, WeWorkRemotely, Craigslist). Track progress against the MVP plan in `CLAUDE.md` → User
-Stories.
+### Not yet implemented
+
+- AI enrichment
+- Coveo-like search/facet UI
+- Additional source parsers (RemoteOK, WeWorkRemotely, Craigslist)
+
+Track progress against the MVP plan in `CLAUDE.md` → User Stories.
 
 ## Getting started
 
@@ -58,8 +85,13 @@ Requirements: Node.js 24+, npm 11+, Docker (for Postgres, Redis, Elasticsearch).
 docker compose up -d
 ```
 
-Brings up Postgres (`localhost:5435`), Redis (`localhost:6380`), and Elasticsearch
-(`localhost:9200`) — see `docker-compose.yml` for the exact service definitions.
+Brings up:
+
+- Postgres on `localhost:5435`
+- Redis on `localhost:6380`
+- Elasticsearch on `localhost:9200`
+
+See `docker-compose.yml` for the exact service definitions.
 
 ### 2. Install dependencies
 
@@ -82,8 +114,12 @@ cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env.local
 ```
 
-`apps/api/.env` needs `DATABASE_URL` (pointing at the Postgres container),
-`REDIS_URL`/`ELASTICSEARCH_URL` (pointing at the other two containers), and a `JWT_SECRET`.
+`apps/api/.env` needs:
+
+- `DATABASE_URL` — pointing at the Postgres container
+- `REDIS_URL` — pointing at the Redis container
+- `ELASTICSEARCH_URL` — pointing at the Elasticsearch container
+- `JWT_SECRET`
 
 ### 4. Apply database migrations and seed data
 
