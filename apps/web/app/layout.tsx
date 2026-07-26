@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "JobCrawler Demo",
+  title: "Job-Crawler-Demo",
   description: "Crawling + AI enrichment + search demo",
 };
 
