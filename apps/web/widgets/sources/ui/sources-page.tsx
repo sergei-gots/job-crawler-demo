@@ -72,7 +72,16 @@ export function SourcesPage() {
                     {sources.map((source) => (
                       <tr key={source.id} className="border-t border-border">
                         <td className="py-1.5 pr-4">{source.name}</td>
-                        <td className="py-1.5 pr-4 text-muted-foreground">{source.baseUrl}</td>
+                        <td className="py-1.5 pr-4 text-muted-foreground">
+                          <a
+                            href={source.baseUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:underline hover:text-foreground"
+                          >
+                            {source.baseUrl}
+                          </a>
+                        </td>
                         <td className="py-1.5 pr-4" title={typeTooltip(source.type)}>
                           {source.type}
                         </td>
