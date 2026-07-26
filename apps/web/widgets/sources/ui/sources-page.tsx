@@ -7,8 +7,10 @@ import { ApiError } from "@/shared/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { PageTitle } from "@/shared/ui/page-title";
 
-function typeLabel(type: Source["type"]): string {
-  return type === "DYNAMIC" ? "Puppeteer" : "Axios";
+function typeTooltip(type: Source["type"]): string {
+  return type === "DYNAMIC"
+    ? "Dynamic (JS-rendered) pages → uses Puppeteer"
+    : "Static pages → uses Axios + Cheerio";
 }
 
 function formatDelay(delayMs: number): string {
@@ -71,7 +73,9 @@ export function SourcesPage() {
                       <tr key={source.id} className="border-t border-border">
                         <td className="py-1.5 pr-4">{source.name}</td>
                         <td className="py-1.5 pr-4 text-muted-foreground">{source.baseUrl}</td>
-                        <td className="py-1.5 pr-4">{typeLabel(source.type)}</td>
+                        <td className="py-1.5 pr-4" title={typeTooltip(source.type)}>
+                          {source.type}
+                        </td>
                         <td className="py-1.5 pr-4">{formatDelay(source.defaultDelayMs)}</td>
                         <td className="py-1.5">{source.isActive ? "Yes" : "No"}</td>
                       </tr>
