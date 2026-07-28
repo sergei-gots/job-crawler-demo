@@ -57,7 +57,7 @@ export function EditJobForm({ job, sources, token, onSaved, onCancel }: EditJobF
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="edit-name">Job name</Label>
+            <Label htmlFor="edit-name">Crawler Job Name</Label>
             <Input id="edit-name" {...register("name")} />
             {errors.name && <p className="text-sm text-red-500">{errors.name.message}</p>}
           </div>

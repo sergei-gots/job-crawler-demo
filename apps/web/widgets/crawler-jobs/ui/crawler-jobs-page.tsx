@@ -21,6 +21,7 @@ export function CrawlerJobsPage() {
   const [jobs, setJobs] = useState<CrawlerJob[] | null>(null);
   const [sources, setSources] = useState<Source[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   const handleAuthError = useCallback(
     (err: unknown, fallbackMessage: string) => {
@@ -174,13 +175,22 @@ export function CrawlerJobsPage() {
           </CardContent>
         </Card>
 
-        {sources && (
-          <CreateJobForm
-            sources={sources}
-            token={token}
-            onCreated={(job) => setJobs((prev) => (prev ? [job, ...prev] : [job]))}
-          />
-        )}
+        {sources &&
+          (isCreating ? (
+            <CreateJobForm
+              sources={sources}
+              token={token}
+              onCreated={(job) => {
+                setJobs((prev) => (prev ? [job, ...prev] : [job]));
+                setIsCreating(false);
+              }}
+              onCancel={() => setIsCreating(false)}
+            />
+          ) : (
+            <Button className="w-fit" onClick={() => setIsCreating(true)}>
+              Create new crawler job
+            </Button>
+          ))}
       </div>
     </main>
   );

@@ -17,9 +17,10 @@ interface CreateJobFormProps {
   sources: Source[];
   token: string;
   onCreated: (job: CrawlerJob) => void;
+  onCancel: () => void;
 }
 
-export function CreateJobForm({ sources, token, onCreated }: CreateJobFormProps) {
+export function CreateJobForm({ sources, token, onCreated, onCancel }: CreateJobFormProps) {
   const [serverError, setServerError] = useState<string | null>(null);
 
   const {
@@ -47,12 +48,12 @@ export function CreateJobForm({ sources, token, onCreated }: CreateJobFormProps)
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Create crawler job</CardTitle>
+        <CardTitle>New crawler job</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="name">Job name</Label>
+            <Label htmlFor="name">Crawler Job Name</Label>
             <Input id="name" {...register("name")} />
             {errors.name && <p className="text-sm text-red-500">{errors.name.message}</p>}
           </div>
@@ -104,9 +105,20 @@ export function CreateJobForm({ sources, token, onCreated }: CreateJobFormProps)
 
           {serverError && <p className="text-sm text-red-500">{serverError}</p>}
 
-          <Button type="submit" disabled={isSubmitting} className="w-fit">
-            {isSubmitting ? "Creating..." : "Create job"}
-          </Button>
+          <div className="flex gap-2">
+            <Button type="submit" disabled={isSubmitting} className="w-fit">
+              {isSubmitting ? "Creating..." : "Create crawler job"}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={isSubmitting}
+              className="w-fit"
+              onClick={onCancel}
+            >
+              Cancel
+            </Button>
+          </div>
         </form>
       </CardContent>
     </Card>
