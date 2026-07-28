@@ -46,7 +46,7 @@ export async function queryVacanciesForJob(job: CrawlerJob): Promise<CrawlerResu
   ];
 
   if (job.keywords) {
-    filter.push({ multi_match: { query: job.keywords, fields: ["title", "company"] } });
+    filter.push({ multi_match: { query: job.keywords, fields: ["title", "company", "description"] } });
   }
 
   const result = await esClient.search<CrawlerResultDoc>({

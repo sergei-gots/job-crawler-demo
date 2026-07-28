@@ -7,6 +7,11 @@ export interface RawVacancy {
   url: string;
   postedAt: string | null;
   sourceId: number;
+  /** Detail-page fields below are only present once a source's enrichDetails has run. */
+  description?: string | null;
+  location?: string | null;
+  isRemote?: boolean | null;
+  skillsSummary?: string | null;
 }
 
 export interface CrawlResult {
@@ -15,6 +20,24 @@ export interface CrawlResult {
   pageLogs: string[];
 }
 
+export interface EnrichDetailsResult {
+  enrichedCount: number;
+}
+
+export type LogProgress = (message: string, level?: "INFO" | "WARN" | "ERROR") => Promise<void>;
+
 export interface CrawlStrategy {
   crawl(source: CrawlSource): Promise<CrawlResult>;
+  /**
+   * Optional: fetches each vacancy's own detail page for richer fields (description, location,
+   * etc.). Sources without a detail-crawl implementation simply omit this method. `logProgress`
+   * is called once per vacancy (not batched) so `JobLog` shows live progress during what can be
+   * a multi-minute, rate-limited loop.
+   */
+  enrichDetails?(
+    source: CrawlSource,
+    vacancies: RawVacancy[],
+    isCancelled: () => boolean,
+    logProgress: LogProgress,
+  ): Promise<EnrichDetailsResult>;
 }

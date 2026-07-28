@@ -34,4 +34,8 @@ export interface Vacancy {
   postedAt: string | null;
   firstSeenAt: string;
   lastSeenAt: string;
+  description?: string | null;
+  location?: string | null;
+  isRemote?: boolean | null;
+  skillsSummary?: string | null;
 }

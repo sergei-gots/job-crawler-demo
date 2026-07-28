@@ -13,6 +13,15 @@ export async function upsertVacancy(raw: RawVacancy): Promise<void> {
   const id = `${raw.sourceId}:${raw.externalId}`;
   const now = new Date().toISOString();
 
+  // Detail fields are only included when present on `raw`, so a listing-only upsert never
+  // clobbers detail data written by a later enrichDetails pass (and vice versa).
+  const detailFields = {
+    ...(raw.description !== undefined ? { description: raw.description } : {}),
+    ...(raw.location !== undefined ? { location: raw.location } : {}),
+    ...(raw.isRemote !== undefined ? { isRemote: raw.isRemote } : {}),
+    ...(raw.skillsSummary !== undefined ? { skillsSummary: raw.skillsSummary } : {}),
+  };
+
   await esClient.update({
     index: CRAWLER_RESULTS_INDEX,
     id,
@@ -24,6 +33,7 @@ export async function upsertVacancy(raw: RawVacancy): Promise<void> {
       url: raw.url,
       postedAt: raw.postedAt,
       lastSeenAt: now,
+      ...detailFields,
     },
     upsert: {
       sourceId: raw.sourceId,
@@ -34,6 +44,7 @@ export async function upsertVacancy(raw: RawVacancy): Promise<void> {
       postedAt: raw.postedAt,
       firstSeenAt: now,
       lastSeenAt: now,
+      ...detailFields,
     },
   });
 }

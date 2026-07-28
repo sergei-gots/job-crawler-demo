@@ -74,6 +74,9 @@ export function EditJobForm({ job, sources, token, onSaved, onCancel }: EditJobF
               placeholder="e.g. typescript, react"
               {...register("keywords")}
             />
+            <p className="text-xs text-muted-foreground">
+              Matches any of these words in the vacancy&apos;s title, company, or description.
+            </p>
           </div>
 
           <div className="flex flex-col gap-2">

@@ -120,6 +120,10 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
             onSaved={(updated) => {
               setJob((prev) => (prev ? { ...prev, ...updated } : prev));
               setIsEditing(false);
+              // Keyword/source filtering happens read-time (ES query), so the vacancy list must
+              // be re-fetched now — otherwise it keeps showing results filtered by the old
+              // keywords/sources until the next reload.
+              void loadVacancies();
             }}
             onCancel={() => setIsEditing(false)}
           />
@@ -230,7 +234,10 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
                 ) : (
                   <div className="flex flex-col gap-1 font-mono text-xs">
                     {job.logs.map((log) => (
-                      <p key={log.id} className="text-foreground">
+                      <p
+                        key={log.id}
+                        className={log.level === "ERROR" ? "text-destructive" : "text-foreground"}
+                      >
                         <span className="text-muted-foreground">
                           {new Date(log.createdAt).toLocaleTimeString()}
                         </span>{" "}
@@ -258,19 +265,37 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
                         key={`${vacancy.sourceId}:${vacancy.externalId}`}
                         className="rounded-lg border border-border p-2.5"
                       >
-                        <a
-                          href={vacancy.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm font-medium text-link hover:underline"
-                        >
-                          {vacancy.title}
-                        </a>
+                        <div className="flex items-start justify-between gap-2">
+                          <a
+                            href={vacancy.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm font-medium text-link hover:underline"
+                          >
+                            {vacancy.title}
+                          </a>
+                          {vacancy.isRemote && (
+                            <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
+                              Remote
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           {vacancy.company ?? "Unknown company"}
+                          {vacancy.location && ` - ${vacancy.location}`}
                           {vacancy.postedAt &&
                             ` - posted ${new Date(vacancy.postedAt).toLocaleDateString()}`}
                         </p>
+                        {vacancy.skillsSummary && (
+                          <p className="mt-1.5 text-xs text-muted-foreground">
+                            {vacancy.skillsSummary}
+                          </p>
+                        )}
+                        {vacancy.description && (
+                          <p className="mt-1.5 line-clamp-2 text-xs text-foreground">
+                            {vacancy.description}
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>
