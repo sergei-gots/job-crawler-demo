@@ -30,7 +30,8 @@ This is a large change, so it's split into two increments sharing this one doc:
 
 ## Status
 
-**Planned — not yet implemented.** (3a first, then 3b as a separate PR.)
+**Phase 3a: Implemented and manually verified** (docs, backend, frontend all landed on branch
+`feat/crawl-search-separation-3a`). **Phase 3b (Search page with facets): Planned, not started.**
 
 ## Target information architecture
 
