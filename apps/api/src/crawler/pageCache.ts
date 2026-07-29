@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import { redis } from "./redisClient.js";
 
-// Vacancy listings don't change second-to-second, and this cache exists to spare the source
-// from duplicate near-simultaneous requests (not to guarantee freshness) — 15 minutes is plenty.
-const PAGE_CACHE_TTL_SECONDS = 900;
+// Vacancy listings and detail pages don't change minute-to-minute, and this cache exists to
+// spare the source from duplicate/near-simultaneous requests (not to guarantee freshness) — an
+// hour covers a full habr_career run (listing + all detail fetches, ~15 min at the seeded 12s
+// rate limit), so a re-run shortly after mostly hits cache instead of re-fetching everything.
+const PAGE_CACHE_TTL_SECONDS = 3600;
 
 export interface CachedPage {
   html: string;

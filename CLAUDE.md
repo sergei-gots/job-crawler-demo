@@ -255,6 +255,12 @@ requires them.
   longer dashes read as visually heavier/wider than intended at UI text sizes. Applies to
   `apps/web` UI strings (labels, placeholders, copy) — not to docs (`CLAUDE.md`, `README.md`,
   `ARCHITECTURE.md`) or code comments, where an em dash is fine.
+- **`JobLog` lines are colored by `level`, not left uniformly `text-foreground`.** `ERROR`-level
+  lines use `text-destructive` (the existing `--destructive` token); `INFO`/`WARN` keep the
+  default `text-foreground` — no separate color introduced for `WARN` yet. First use: the
+  crawler job detail page's Execution logs panel
+  (`widgets/crawler-job-detail/ui/crawler-job-detail-page.tsx`). Extend this pattern (not a new
+  ad-hoc color) if/when `WARN` gets its own styling.
 
 ## Testing Philosophy
 

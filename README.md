@@ -73,6 +73,28 @@ See `.claude/features/FEATURE_REAL_CRAWLER_REDIS_ES.md`.
 - A simple vacancy list on the crawler job detail page — see "Checking crawled data" below.
 - No AI enrichment and no Coveo-like search/facet UI yet.
 
+### Vacancy detail crawl — Increment 2.2
+
+See `.claude/features/FEATURE_VACANCY_DETAIL_CRAWL.md`.
+
+- After crawling the `habr_career` listing page(s), each vacancy's own detail page is fetched too
+  and parsed via its `schema.org/JobPosting` JSON-LD block — adding `description`, `location`,
+  `isRemote`, and `skillsSummary` (habr's own auto-generated "Навыки: ..." lead sentence, stored
+  as raw text, not split into a skill list) to the stored vacancy.
+- **No salary field.** A manual check found habr almost never discloses an actual salary (100%
+  of ~150 sampled listings showed "not specified"); the only visible number is a market estimate
+  for similar roles, not the employer's own figure — storing it as `salary` would misrepresent
+  the source, so it's intentionally left out.
+- **No cap on how many vacancies get a detail fetch per run** — every vacancy found by the
+  listing pass is detail-crawled, bounded only by the existing `maxPagesPerRun`. Detail requests
+  share the same per-source rate limiter as the listing crawl (`habr_career`'s seeded
+  `defaultDelayMs` is 12s), so a full run can take several minutes by design — crawling
+  politeness was prioritized over run speed for this project.
+- `Keywords` on a Crawler Job now also matches against `description` (previously just
+  `title`/`company`). The match is **OR-based**: `"docker, kubernetes"` finds vacancies
+  containing *either* word, not necessarily both — a hint under the field in both the Create and
+  Edit forms documents this.
+
 ### Crawler job editing & deletion
 
 - New endpoints (user-scoped, behind JWT auth; both reject with `400` if the job is `RUNNING`):
@@ -214,11 +236,12 @@ duplicate a vacancy, it just bumps that document's `lastSeenAt`.
 
 ### Why a run sometimes shows `cache: miss` right after a previous one
 
-The raw HTML page fetched per crawl is cached in Redis for 15 minutes
-(`PAGE_CACHE_TTL_SECONDS` in `apps/api/src/crawler/pageCache.ts`) — long enough to spare the
-source from duplicate near-simultaneous requests, short enough to not matter for freshness. Two
-runs more than 15 minutes apart will both hit the network; two runs within that window will show
-`cache: hit` on the second one in its `JobLog`.
+The raw HTML page fetched per crawl (listing pages and, since Increment 2.2, each vacancy's
+detail page) is cached in Redis for 1 hour (`PAGE_CACHE_TTL_SECONDS` in
+`apps/api/src/crawler/pageCache.ts`) — long enough to cover a full habr_career run (~15 min at
+the seeded rate limit), short enough to not matter for freshness. Two runs more than an hour
+apart will both hit the network; two runs within that window will show `cache: hit` in `JobLog`
+for pages already fetched.
 
 ## Project structure
 

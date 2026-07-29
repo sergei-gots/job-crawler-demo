@@ -22,7 +22,7 @@ async function logError(jobId: number, message: string): Promise<void> {
   await prisma.jobLog.create({ data: { jobId, level: "ERROR", message } });
 }
 
-async function crawlSource(jobId: number, source: CrawlSource): Promise<void> {
+async function crawlSource(jobId: number, source: CrawlSource, isCancelled: () => boolean): Promise<void> {
   await logInfo(jobId, `Starting crawl of ${source.name}`);
 
   const strategy = getStrategy(source);
@@ -39,6 +39,16 @@ async function crawlSource(jobId: number, source: CrawlSource): Promise<void> {
     await upsertVacancy(vacancy);
   }
   await logInfo(jobId, `Found ${vacancies.length} vacancies for ${source.name}`);
+
+  if (strategy.enrichDetails && vacancies.length > 0) {
+    await logInfo(jobId, `Enriching vacancy details for ${source.name} (${vacancies.length} vacancies)`);
+    const { enrichedCount } = await strategy.enrichDetails(source, vacancies, isCancelled, (message, level) => {
+      if (level === "ERROR") return logError(jobId, message);
+      if (level === "WARN") return logWarn(jobId, message);
+      return logInfo(jobId, message);
+    });
+    await logInfo(jobId, `Enriched ${enrichedCount}/${vacancies.length} vacancies for ${source.name}`);
+  }
 }
 
 export async function startCrawlerRun(jobId: number, sources: CrawlSource[]): Promise<void> {
@@ -55,7 +65,7 @@ export async function startCrawlerRun(jobId: number, sources: CrawlSource[]): Pr
     if (runState.cancelled) break;
 
     try {
-      await crawlSource(jobId, source);
+      await crawlSource(jobId, source, () => runState.cancelled);
     } catch (error) {
       logger.error(`Failed to crawl source ${source.name} for job ${jobId}: ${String(error)}`);
       await logError(jobId, `Failed to crawl ${source.name}: ${String(error)}`);
