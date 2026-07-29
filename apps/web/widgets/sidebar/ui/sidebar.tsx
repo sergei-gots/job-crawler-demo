@@ -11,9 +11,9 @@ import { Button } from "@/shared/ui/button";
 import { Card, CardContent } from "@/shared/ui/card";
 
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard" },
+  { href: "/about", label: "About" },
   { href: "/sources", label: "Sources" },
-  { href: "/crawler-jobs", label: "Crawler Jobs" },
+  { href: "/search", label: "Search" },
   { href: "/profile", label: "Profile" },
 ];
 

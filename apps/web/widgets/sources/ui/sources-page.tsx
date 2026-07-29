@@ -1,11 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+import { crawlAll, useCrawlActions } from "@/features/run-crawl";
 import { useRequireAuth } from "@/entities/session";
-import { getSources, type Source } from "@/entities/source";
+import { getSourceRun, getSources, type CrawlRun, type Source } from "@/entities/source";
 import { ApiError } from "@/shared/lib/api";
+import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { PageTitle } from "@/shared/ui/page-title";
+import { StatusBadge } from "@/shared/ui/status-badge";
+
+const POLL_INTERVAL_MS = 2000;
 
 function typeTooltip(type: Source["type"]): string {
   return type === "DYNAMIC"
@@ -20,27 +26,83 @@ function formatDelay(delayMs: number): string {
 export function SourcesPage() {
   const { token, handleUnauthorized } = useRequireAuth();
   const [sources, setSources] = useState<Source[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [runs, setRuns] = useState<Record<number, CrawlRun | null>>({});
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [crawlAllPending, setCrawlAllPending] = useState(false);
+
+  const loadRuns = useCallback(
+    async (sourceIds: number[]) => {
+      if (!token) return;
+      const entries = await Promise.all(
+        sourceIds.map(async (id) => [id, await getSourceRun(id, token)] as const),
+      );
+      setRuns(Object.fromEntries(entries));
+    },
+    [token],
+  );
+
+  const loadSources = useCallback(async () => {
+    if (!token) return;
+    try {
+      const result = await getSources(token);
+      setSources(result);
+      await loadRuns(result.map((source) => source.id));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      setLoadError("Failed to load sources");
+    }
+  }, [token, handleUnauthorized, loadRuns]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount, matches entities/session/lib/use-require-auth.ts
+    loadSources();
+  }, [loadSources]);
+
+  const hasRunningSource = Object.values(runs).some((run) => run?.status === "RUNNING");
+
+  useEffect(() => {
+    if (!hasRunningSource || !sources) return;
+    const sourceIds = sources.map((source) => source.id);
+    const interval = setInterval(() => loadRuns(sourceIds), POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [hasRunningSource, sources, loadRuns]);
+
+  const patchRun = useCallback((run: CrawlRun) => {
+    setRuns((prev) => ({ ...prev, [run.sourceId]: run }));
+  }, []);
+
+  const { start, stop, pendingId, error: actionError } = useCrawlActions({
+    token,
+    handleUnauthorized,
+    onStarted: patchRun,
+    onStopped: patchRun,
+  });
+
+  async function handleCrawlAll() {
     if (!token) return;
-    const authToken = token;
-
-    async function load() {
-      try {
-        const result = await getSources(authToken);
-        setSources(result);
-      } catch (err) {
-        if (err instanceof ApiError && err.status === 401) {
-          handleUnauthorized();
-          return;
-        }
-        setError("Failed to load sources");
+    setCrawlAllPending(true);
+    try {
+      const startedRuns = await crawlAll(token);
+      setRuns((prev) => {
+        const next = { ...prev };
+        for (const run of startedRuns) next[run.sourceId] = run;
+        return next;
+      });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        handleUnauthorized();
+        return;
       }
+      setLoadError("Failed to crawl all sources");
+    } finally {
+      setCrawlAllPending(false);
     }
+  }
 
-    load();
-  }, [token, handleUnauthorized]);
+  const error = actionError ?? loadError;
 
   if (!token) return null;
 
@@ -51,28 +113,38 @@ export function SourcesPage() {
         {error && <p className="text-sm text-red-500">{error}</p>}
         <Card>
           <CardHeader>
-            <CardTitle>Predefined data sources</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Predefined data sources</CardTitle>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={crawlAllPending}
+                onClick={handleCrawlAll}
+              >
+                Crawl all
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {!sources ? (
               <p className="text-sm text-muted-foreground">Loading...</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="text-muted-foreground">
-                      <th className="py-1.5 pr-4 font-medium">Name</th>
-                      <th className="py-1.5 pr-4 font-medium">Base URL</th>
-                      <th className="py-1.5 pr-4 font-medium">Type</th>
-                      <th className="py-1.5 pr-4 font-medium">Delay</th>
-                      <th className="py-1.5 font-medium">Active</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sources.map((source) => (
-                      <tr key={source.id} className="border-t border-border">
-                        <td className="py-1.5 pr-4">{source.name}</td>
-                        <td className="py-1.5 pr-4">
+              <div className="flex flex-col gap-2">
+                {sources.map((source) => {
+                  const run = runs[source.id];
+                  return (
+                    <div
+                      key={source.id}
+                      className="flex flex-wrap items-center justify-between gap-y-2 gap-x-2 rounded-lg border border-border p-2.5"
+                    >
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <Link
+                          href={`/sources/${source.id}`}
+                          className="truncate text-sm font-medium hover:underline"
+                        >
+                          {source.name}
+                        </Link>
+                        <p className="truncate text-xs text-muted-foreground">
                           <a
                             href={source.baseUrl}
                             target="_blank"
@@ -81,16 +153,39 @@ export function SourcesPage() {
                           >
                             {source.baseUrl}
                           </a>
-                        </td>
-                        <td className="py-1.5 pr-4" title={typeTooltip(source.type)}>
-                          {source.type}
-                        </td>
-                        <td className="py-1.5 pr-4">{formatDelay(source.defaultDelayMs)}</td>
-                        <td className="py-1.5">{source.isActive ? "Yes" : "No"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          {" - "}
+                          <span title={typeTooltip(source.type)}>{source.type}</span>
+                          {" - "}
+                          {formatDelay(source.defaultDelayMs)}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <StatusBadge status={run?.status ?? "PENDING"} />
+                        {run?.status === "RUNNING" ? (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="w-20"
+                            disabled={pendingId === source.id}
+                            onClick={() => stop(source.id)}
+                          >
+                            Stop
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="w-20"
+                            disabled={pendingId === source.id}
+                            onClick={() => start(source.id)}
+                          >
+                            {run ? "Restart" : "Start"}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>
