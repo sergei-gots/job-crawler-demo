@@ -94,6 +94,13 @@ See `.claude/features/FEATURE_VACANCY_DETAIL_CRAWL.md`.
   `title`/`company`). The match is **OR-based**: `"docker, kubernetes"` finds vacancies
   containing *either* word, not necessarily both — a hint under the field in both the Create and
   Edit forms documents this.
+- Each vacancy on the crawler job detail page has a small **"View raw ES data"** button that
+  toggles a pretty-printed JSON dump of that vacancy's Elasticsearch document inline (the exact
+  same object returned by `GET /crawler-jobs/:id/vacancies`, no extra API call). Purely
+  illustrative — this is a demo app, so the button makes the underlying Elasticsearch storage
+  visible rather than hiding it behind the UI. Hovering the button shows a tooltip with the
+  document's direct ES REST URL (`http://localhost:9200/crawler_results/_doc/{sourceId}:{externalId}`)
+  for anyone who wants to `curl` it themselves.
 
 ### Crawler job editing & deletion
 
