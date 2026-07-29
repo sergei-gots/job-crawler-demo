@@ -31,6 +31,16 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
   const [vacancies, setVacancies] = useState<Vacancy[] | null>(null);
   const [sources, setSources] = useState<Source[] | null>(null);
   const [isEditing, setIsEditing] = useState(searchParams.get("edit") === "1");
+  const [expandedRawVacancyIds, setExpandedRawVacancyIds] = useState<Set<string>>(new Set());
+
+  const toggleRawVacancy = useCallback((vacancyKey: string) => {
+    setExpandedRawVacancyIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(vacancyKey)) next.delete(vacancyKey);
+      else next.add(vacancyKey);
+      return next;
+    });
+  }, []);
 
   const loadVacancies = useCallback(async () => {
     if (!token) return;
@@ -260,9 +270,12 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
                   <p className="text-sm text-muted-foreground">No vacancies found yet.</p>
                 ) : (
                   <div className="flex flex-col gap-2">
-                    {vacancies.map((vacancy) => (
+                    {vacancies.map((vacancy) => {
+                      const vacancyKey = `${vacancy.sourceId}:${vacancy.externalId}`;
+                      const isRawExpanded = expandedRawVacancyIds.has(vacancyKey);
+                      return (
                       <div
-                        key={`${vacancy.sourceId}:${vacancy.externalId}`}
+                        key={vacancyKey}
                         className="rounded-lg border border-border p-2.5"
                       >
                         <div className="flex items-start justify-between gap-2">
@@ -280,7 +293,21 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-muted-foreground">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="mt-1.5 w-fit"
+                          title={`http://localhost:9200/crawler_results/_doc/${vacancyKey}`}
+                          onClick={() => toggleRawVacancy(vacancyKey)}
+                        >
+                          {isRawExpanded ? "Hide raw ES data" : "View raw ES data"}
+                        </Button>
+                        {isRawExpanded && (
+                          <pre className="mt-1.5 overflow-x-auto rounded-lg border border-border bg-muted p-2 text-xs text-foreground">
+                            {JSON.stringify(vacancy, null, 2)}
+                          </pre>
+                        )}
+                        <p className="mt-1.5 text-xs text-muted-foreground">
                           {vacancy.company ?? "Unknown company"}
                           {vacancy.location && ` - ${vacancy.location}`}
                           {vacancy.postedAt &&
@@ -297,7 +324,8 @@ export function CrawlerJobDetailPage({ jobId }: { jobId: number }) {
                           </p>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>
