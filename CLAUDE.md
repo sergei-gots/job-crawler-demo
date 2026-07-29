@@ -15,12 +15,13 @@ Create a clean, well-structured MVP that demonstrates the full tech stack: TypeS
 - **TypeScript + Node.js + Express** — Core backend and REST API
 - **Puppeteer** — Crawling JavaScript-rendered pages (chosen per source, via `CrawlSource.type`)
 - **Axios + Cheerio** — Fast static page crawling
-- **PostgreSQL** — Store users, Crawler Jobs, crawler job logs, settings
-- **Redis** — Rate limiting, simple crawler job queue/state, caching
+- **PostgreSQL** — Store users, crawl runs, crawl logs, settings
+- **Redis** — Rate limiting, simple crawl run state, caching
 - **Elasticsearch** — Main storage and search engine for crawled results
 - **Coveo-like layer** — Light abstraction above Elasticsearch that mimics a Coveo-style
   search experience (facets, relevance sorting). Saved searches are **out of scope for MVP**.
-- **JWT Authentication** — User registration, login and ownership of crawler jobs/results
+- **JWT Authentication** — User registration and login. Crawling and search are shared/global,
+  not owned per user — see Security Considerations.
 - **Claude API** — AI enrichment (summarization, skill extraction, categorization).
   Start with a `MockAIEnricher`; wire the real API (key in `.env`) in a later stage.
 - **Winston** — Structured logging
@@ -56,15 +57,18 @@ and `weworkremotely` above.
 `CrawlStrategy` adapters if time allows, without changing the crawler architecture.
 
 All four are already seeded as `CrawlSource` rows (`apps/api/prisma/seed.ts`) so they're
-selectable from the Sources/Crawler Jobs UI, but no `CrawlStrategy` reads them yet — Increment 1's
-`POST /crawler-jobs/:id/start` runs a **mock in-process runner** (see
-`apps/api/src/crawler-jobs/crawler-jobs.runner.ts` and
-`.claude/features/FEATIRE_SOURCES_AND_JOBS.md`), not a real crawl of any source.
+selectable on the Sources page. Only `habr_career` has a real `CrawlStrategy` (Axios+Cheerio,
+listing crawl plus per-vacancy detail crawl — see the "Real crawler..." and "Vacancy detail
+crawl..." features in `.claude/features/`); the other three don't have a parser yet, so
+triggering a crawl for them (or using "crawl all") logs a `WARN` and skips them rather than
+failing the run. Crawling is triggered directly per source via `POST /sources/:id/crawl` — see
+`.claude/features/FEATURE_CRAWL_SEARCH_SEPARATION.md` — there is no separate job entity that
+picks which sources to run.
 
 For each source we define: `type` (`STATIC`/`DYNAMIC` — determines Axios+Cheerio vs Puppeteer),
-`defaultDelayMs`, base URL, and (eventually) the CSS selectors/fields to parse. This lives on the
-`CrawlSource`, not the Crawler Job — a Crawler Job just picks which sources to run against. Always
-respect the site's `robots.txt` and apply rate limiting.
+`defaultDelayMs`, base URL, and (eventually) the CSS selectors/fields to parse. This all lives on
+the `CrawlSource` itself; there's no separate per-run configuration. Always respect the site's
+`robots.txt` and apply rate limiting.
 
 ## Coding Standards
 
@@ -88,7 +92,7 @@ respect the site's `robots.txt` and apply rate limiting.
 ## Git & Development Workflow
 
 - Use meaningful commit messages in English.
-- Work in feature branches (e.g. `feat/create-crawler-job`, `fix/crawler-rate-limit`).
+- Work in feature branches (e.g. `feat/crawl-search-separation-3a`, `fix/crawler-rate-limit`).
 - Keep `main` branch stable.
 - Commit often, push regularly.
 - All code must be in English.
@@ -108,42 +112,64 @@ respect the site's `robots.txt` and apply rate limiting.
   before merging (commands to run, URLs to open, edge cases to try, anything not covered by
   automated checks).
 
+### Feature design docs (`.claude/features/`)
+
+Every non-trivial feature or increment gets a design doc in `.claude/features/`, written (or
+updated) as part of that work — not after. These docs are the durable record of **why**: the
+code shows *what* was built, the doc captures the reasoning, the alternatives rejected, and the
+decisions locked with the user so they aren't silently re-litigated later.
+
+- **Naming**: `FEATURE_<SHORT_NAME>.md`, uppercase snake case (e.g.
+  `FEATURE_VACANCY_DETAIL_CRAWL.md`). (One legacy file is misspelled `FEATIRE_...` — don't copy
+  that; new docs use `FEATURE_`.)
+- **Contents**, roughly in this order: a **Context/Overview** (the problem and intended outcome),
+  a **Status** line (Planned / Implemented / etc.), **decisions locked with the user** (each with
+  its rationale, so they read as settled, not open), explicit **scope boundaries** (what's
+  deliberately out of scope and why), a phased **implementation plan / steps** as a checklist, and
+  a **verification** section (how to test it end-to-end, per the Testing Philosophy below).
+- **Keep it in sync**: when the work lands, update the doc's Status and check off its steps; when a
+  later change invalidates a decision recorded there, update the doc in the same PR — same rule as
+  for `CLAUDE.md`/`README.md`/`ARCHITECTURE.md` drift.
+- A large effort may be split across several increments/PRs but share **one** feature doc with
+  phased sections, rather than one doc per PR — keeps the whole reasoning in one place.
+
 ## User Stories (MVP)
 
 As a user I can:
 
 1. Register and log in (JWT Authentication)
 2. View a list of predefined data sources (see Data Sources above)
-3. Create a new Crawler Job:
-   - Crawler Job name
-   - Select data sources
-   - Define keywords/filters
-   - (Crawl strategy and delay are not Crawler-Job-level settings — they come from each selected
-     `CrawlSource`'s own `type`/`defaultDelayMs`.)
-4. Start / Stop my Crawler Jobs
-5. See the status and progress of my Crawler Jobs
-6. Search through collected data using Elasticsearch (Coveo-like facets + relevance)
-7. View execution logs for each Crawler Job
-8. Receive AI-enriched summaries of crawled content
+3. Start / Stop a crawl for a source, or crawl all sources at once — crawling is a shared,
+   global operation (not scoped to me); any logged-in user can trigger it (see Security
+   Considerations). Crawl strategy, delay, and page depth are not configurable per run — they
+   come from the selected `CrawlSource`'s own `type`/`defaultDelayMs`/`maxPagesPerRun`.
+4. See the status and progress of a source's crawl runs, including execution logs
+5. Search through all collected vacancies using Elasticsearch — free text plus facets
+   (Specialization, Seniority level, Remote/On-site, Location, Company) and relevance sorting
+6. Receive AI-enriched summaries of crawled content (future increment)
 
 ## Data Models (summary)
 
 Full field definitions live in `ARCHITECTURE.md`. Core entities:
 
-- **User** — PostgreSQL. Owns everything.
-- **CrawlerJob** — PostgreSQL. Belongs to a `userId`; holds selected sources, keywords, and status.
-- **CrawlerResult** — Elasticsearch (primary). A crawled + AI-enriched job posting.
-- **JobLog** — PostgreSQL. Execution log lines per job.
+- **User** — PostgreSQL. Authentication only — see Security Considerations for why crawling and
+  search have no per-user ownership.
+- **CrawlSource** — PostgreSQL. A seeded, shared crawl target (name/baseUrl/type/rate-limit
+  config). Crawling is triggered directly on a source, not via a separate job entity.
+- **CrawlRun** — PostgreSQL. One crawl execution of one source: status, timestamps, vacancy
+  count. Owns `CrawlLog[]`.
+- **CrawlerResult** — Elasticsearch (primary). A crawled + AI-enriched vacancy, deduplicated by
+  `sourceId:externalId` across the whole shared corpus.
+- **CrawlLog** — PostgreSQL. Execution log lines per `CrawlRun`.
 
 ## Technical Guidelines & Axioms
 
 - All code, documentation, comments, variable names, function names, folder names, and UI text must be in **English**.
 - The entire project interface and user-facing content should be in English.
 - Russian can only be used in personal development notes (`.notes/`, git-ignored).
-- Every Crawler Job belongs to a specific `userId`.
+- Crawling is global, not scoped to a user — see Security Considerations.
 - Respect `robots.txt` and implement rate limiting (via Redis).
-- Puppeteer vs Axios/Cheerio is chosen per source (`CrawlSource.type`), never a per-Crawler-Job
-  setting.
+- Puppeteer vs Axios/Cheerio is chosen per source (`CrawlSource.type`), never a per-run setting.
 - AI enrichment goes through an interface; ship a `MockAIEnricher` first, real Claude API later.
 - Keep the architecture modular and easy to extend.
 - Prefer simplicity for MVP (avoid over-engineering).
@@ -153,15 +179,22 @@ Full field definitions live in `ARCHITECTURE.md`. Core entities:
 
 ## Security Considerations
 
-- Crawler jobs are always accessed through user ownership checks (`getOwnedJobOrThrow` in
-  `crawler-jobs.service.ts`) — a request for another user's job returns `404`, not `403`, so
-  existence isn't leaked.
-- Update/Delete operations validate ownership **and** status (reject if `RUNNING`) before
-  modifying anything, server-side, regardless of what the client sent.
-- Client-side restrictions (disabled buttons, hidden actions while `RUNNING`) are UX only —
-  server-side validation in the service layer is authoritative and re-checked on every request.
-- API schemas (Zod, `crawler-jobs.schemas.ts`) define an explicit allow-list of writable fields;
-  extra keys in a request body are stripped, not persisted — no mass-assignment via `PATCH`.
+- **Crawling is a shared, global operation, not owned per user.** Sources are shared seed data,
+  and the corpus they produce in Elasticsearch is a single deduplicated collection
+  (`sourceId:externalId`) — mirroring how ingestion/admin operations work against shared
+  infrastructure in real search systems (Coveo, Elastic connectors). Any authenticated user can
+  start/stop a crawl run for any source and see its status/logs; there is no per-user ownership
+  check to bypass, because there is no owner. The per-source Redis rate limiter is what protects
+  the source from abuse (repeated/overlapping crawl requests), not per-user gating.
+- **No RBAC yet.** A production deployment would gate crawl-triggering behind an admin role; this
+  MVP deliberately treats every logged-in user as trusted to trigger crawls — see
+  `.claude/features/FEATURE_CRAWL_SEARCH_SEPARATION.md` for why this was deferred rather than
+  built now.
+- **Search is read-only and unscoped** — the search endpoint returns matches from the whole
+  shared corpus; there's nothing to authorize per-result since nothing is owned per user.
+- Client-side restrictions (disabled buttons while a crawl is `RUNNING`) are UX only —
+  server-side, status-conditioned writes (the concurrency guard preventing two overlapping runs
+  of the same source) are authoritative and re-checked on every request.
 
 ## Product UI Principles
 
@@ -169,15 +202,14 @@ This application is a crawler management console.
 
 Prioritize:
 - clarity of workflows over visual decoration
-- showing crawler job status and progress
-- clear distinction between configuration and results
+- showing crawl status and progress
+- clear distinction between configuration (Sources) and results (Search)
 - operational information visibility
 
 Main user actions should be obvious:
-- create crawler job
-- configure source
-- run crawler
-- inspect results
+- run a crawl (per source, or all sources)
+- inspect a source's crawl status and logs
+- search and filter results (facets)
 - review history
 
 ## UI Design Guidelines
@@ -224,8 +256,8 @@ requires them.
 - **Button color hierarchy** — two levels, distinguished by fill, not by inventing new variants:
   | Level | Variant | Look | Used for |
   | --- | --- | --- | --- |
-  | Primary action | `variant="default"` (`shared/ui/button.tsx`) | Medium-dark gray fill (`--primary: oklch(0.55 0 0)`), light text — deliberately *not* near-black | Main CTA per screen: Login, Register, Create job, Update profile |
-  | Secondary action | `variant="secondary"` | Clearly gray fill (`--secondary: oklch(0.9 0 0)`), dark text — must read as visibly gray against a white `Card`, not blend into it | In-context actions on an existing item: Start / Stop a crawler job |
+  | Primary action | `variant="default"` (`shared/ui/button.tsx`) | Medium-dark gray fill (`--primary: oklch(0.55 0 0)`), light text — deliberately *not* near-black | Main CTA per screen: Login, Register, Update profile |
+  | Secondary action | `variant="secondary"` | Clearly gray fill (`--secondary: oklch(0.9 0 0)`), dark text — must read as visibly gray against a white `Card`, not blend into it | In-context actions on an existing item: Start / Stop a source crawl |
 
   Both colors are tokens in `app/globals.css` (`:root` block, light theme) — tune brightness there,
   not per-component. `--primary` went through several rounds of manual eyeballing (`0.205` too
@@ -255,12 +287,11 @@ requires them.
   longer dashes read as visually heavier/wider than intended at UI text sizes. Applies to
   `apps/web` UI strings (labels, placeholders, copy) — not to docs (`CLAUDE.md`, `README.md`,
   `ARCHITECTURE.md`) or code comments, where an em dash is fine.
-- **`JobLog` lines are colored by `level`, not left uniformly `text-foreground`.** `ERROR`-level
+- **`CrawlLog` lines are colored by `level`, not left uniformly `text-foreground`.** `ERROR`-level
   lines use `text-destructive` (the existing `--destructive` token); `INFO`/`WARN` keep the
-  default `text-foreground` — no separate color introduced for `WARN` yet. First use: the
-  crawler job detail page's Execution logs panel
-  (`widgets/crawler-job-detail/ui/crawler-job-detail-page.tsx`). Extend this pattern (not a new
-  ad-hoc color) if/when `WARN` gets its own styling.
+  default `text-foreground` — no separate color introduced for `WARN` yet. First use: the Source
+  detail page's Execution logs panel (`widgets/source-detail/ui/source-detail-page.tsx`). Extend
+  this pattern (not a new ad-hoc color) if/when `WARN` gets its own styling.
 
 ## Testing Philosophy
 
@@ -299,13 +330,13 @@ Monorepo with two apps:
       /models          # Postgres models / repositories
       /routes
       /utils
-      /workers         # crawler job runner / queue consumers
+      /workers         # crawl runner / queue consumers
       /types
   /web                 # Next.js frontend (FSD)
     /app               # routing only
-    /widgets           # dashboard, crawler-jobs, search, sidebar
-    /features          # auth, create-crawler-job, run-crawler-job, search
-    /entities          # session, user, crawler-job, result
+    /widgets           # about, sources, source-detail, search, sidebar
+    /features          # auth, run-crawl, search-vacancies
+    /entities          # session, user, source, vacancy
     /shared            # ui/, lib/ (api client)
 /docker                # docker-compose + service configs
 ```
