@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { clearSourceData } from "@/features/admin-actions";
 import { useCrawlActions } from "@/features/run-crawl";
 import { useRequireAuth } from "@/entities/session";
 import {
@@ -19,9 +20,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { StatusBadge } from "@/shared/ui/status-badge";
 
 const POLL_INTERVAL_MS = 2000;
+const VACANCIES_PAGE_SIZE = 10;
 
 function formatDelay(delayMs: number): string {
   return `${delayMs.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} ms`;
+}
+
+function typeTooltip(type: Source["type"]): string {
+  return type === "DYNAMIC"
+    ? "Dynamic (JS-rendered) pages → uses Puppeteer"
+    : "Static pages → uses Axios + Cheerio";
 }
 
 export function SourceDetailPage({ sourceId }: { sourceId: number }) {
@@ -30,7 +38,9 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
   const [run, setRun] = useState<CrawlRunWithLogs | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [vacancies, setVacancies] = useState<Vacancy[] | null>(null);
+  const [vacanciesPage, setVacanciesPage] = useState(1);
   const [showLogs, setShowLogs] = useState(false);
+  const [clearDataPending, setClearDataPending] = useState(false);
   const [expandedRawVacancyIds, setExpandedRawVacancyIds] = useState<Set<string>>(new Set());
 
   const toggleRawVacancy = useCallback((vacancyKey: string) => {
@@ -47,6 +57,7 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
     try {
       const result = await getSourceVacancies(sourceId, token);
       setVacancies(result);
+      setVacanciesPage(1);
     } catch {
       // Non-fatal: the status/log panels above still work even if the vacancy list fails to load.
     }
@@ -84,8 +95,8 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
         }
         setLoadError("Failed to load source");
       }
-      await loadRun();
-      await loadVacancies();
+      // Independent requests — run in parallel instead of doubling the round-trip latency.
+      await Promise.all([loadRun(), loadVacancies()]);
     })();
   }, [token, sourceId, handleUnauthorized, loadRun, loadVacancies]);
 
@@ -111,8 +122,39 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
     onStopped: () => loadRun(),
   });
 
+  async function handleClearData() {
+    if (!token) return;
+    if (
+      !window.confirm(
+        `Clear all data for "${source?.name ?? "this source"}"? This deletes its crawled vacancies from Elasticsearch and resets its crawl status back to never-run. If a crawl is currently running for it, that crawl is stopped first. This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setClearDataPending(true);
+    try {
+      await clearSourceData(sourceId, token);
+      // The backend stops an in-progress crawl, deletes ES data, and deletes this source's
+      // CrawlRun/CrawlLog history — refresh both so the UI reflects the fresh "never run" state.
+      await Promise.all([loadRun(), loadVacancies()]);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      setLoadError("Failed to clear source data");
+    } finally {
+      setClearDataPending(false);
+    }
+  }
+
   const actionPending = pendingId === sourceId;
   const error = actionError ?? loadError;
+  const pagedVacancies = (vacancies ?? []).slice(
+    (vacanciesPage - 1) * VACANCIES_PAGE_SIZE,
+    vacanciesPage * VACANCIES_PAGE_SIZE,
+  );
+  const totalVacancyPages = Math.ceil((vacancies?.length ?? 0) / VACANCIES_PAGE_SIZE);
 
   if (!token) return null;
 
@@ -137,6 +179,10 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
               <CardContent className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1 text-sm">
                   <p>
+                    <span className="text-muted-foreground">Source ID: </span>
+                    {source.id}
+                  </p>
+                  <p>
                     <span className="text-muted-foreground">Base URL: </span>
                     <a
                       href={source.baseUrl}
@@ -149,24 +195,38 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
                   </p>
                   <p>
                     <span className="text-muted-foreground">Type: </span>
-                    {source.type}
+                    <span title={typeTooltip(source.type)}>{source.type}</span>
                   </p>
                   <p>
                     <span className="text-muted-foreground">Rate limit: </span>
                     {formatDelay(source.defaultDelayMs)}
                   </p>
                   <p>
+                    <span className="text-muted-foreground">Pages to crawl: </span>
+                    {source.maxPagesToCrawl}
+                  </p>
+                  <p>
                     <span className="text-muted-foreground">Last run: </span>
                     {run?.startedAt ? new Date(run.startedAt).toLocaleString() : "Never"}
                   </p>
                 </div>
-                <div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="w-fit text-destructive"
+                    title="Clear ES Data"
+                    disabled={clearDataPending}
+                    onClick={handleClearData}
+                  >
+                    Clear data
+                  </Button>
                   {run?.status === "RUNNING" ? (
                     <Button
                       variant="secondary"
                       size="sm"
                       className="w-fit"
-                      disabled={actionPending}
+                      disabled={actionPending || clearDataPending}
                       onClick={() => stop(sourceId)}
                     >
                       Stop
@@ -176,7 +236,7 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
                       variant="secondary"
                       size="sm"
                       className="w-fit"
-                      disabled={actionPending}
+                      disabled={actionPending || clearDataPending}
                       onClick={() => start(sourceId)}
                     >
                       {run ? "Restart" : "Start"}
@@ -229,20 +289,24 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
                   <p className="text-sm text-muted-foreground">No vacancies found yet.</p>
                 ) : (
                   <div className="flex flex-col gap-2">
-                    {vacancies.map((vacancy) => {
+                    {pagedVacancies.map((vacancy, index) => {
                       const vacancyKey = `${vacancy.sourceId}:${vacancy.externalId}`;
                       const isRawExpanded = expandedRawVacancyIds.has(vacancyKey);
+                      const ordinal = (vacanciesPage - 1) * VACANCIES_PAGE_SIZE + index + 1;
                       return (
                         <div key={vacancyKey} className="rounded-lg border border-border p-2.5">
                           <div className="flex items-start justify-between gap-2">
-                            <a
-                              href={vacancy.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm font-medium text-link hover:underline"
-                            >
-                              {vacancy.title}
-                            </a>
+                            <p className="min-w-0 text-sm">
+                              <span className="text-muted-foreground">{ordinal}. </span>
+                              <a
+                                href={vacancy.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-medium text-link hover:underline"
+                              >
+                                {vacancy.title}
+                              </a>
+                            </p>
                             {vacancy.isRemote && (
                               <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
                                 Remote
@@ -282,6 +346,29 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
                         </div>
                       );
                     })}
+                  </div>
+                )}
+                {vacancies && vacancies.length > VACANCIES_PAGE_SIZE && (
+                  <div className="mt-3 flex items-center justify-between">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={vacanciesPage === 1}
+                      onClick={() => setVacanciesPage((p) => p - 1)}
+                    >
+                      Previous
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      Page {vacanciesPage} of {totalVacancyPages}
+                    </p>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={vacanciesPage >= totalVacancyPages}
+                      onClick={() => setVacanciesPage((p) => p + 1)}
+                    >
+                      Next
+                    </Button>
                   </div>
                 )}
               </CardContent>

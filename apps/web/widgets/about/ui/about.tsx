@@ -1,7 +1,7 @@
 "use client";
 
 import { useRequireAuth } from "@/entities/session";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/shared/ui/card";
 import { PageTitle } from "@/shared/ui/page-title";
 
 const STACK_GROUPS = [
@@ -24,7 +24,6 @@ export function About() {
         <PageTitle>About</PageTitle>
         <Card>
           <CardHeader>
-            <CardTitle>About</CardTitle>
             <CardDescription>
               <a
                 href="https://github.com/sergei-gots/job-crawler-demo"

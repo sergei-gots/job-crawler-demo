@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { clearCache, clearSearchData } from "@/features/admin-actions";
 import { crawlAll, useCrawlActions } from "@/features/run-crawl";
 import { useRequireAuth } from "@/entities/session";
 import { getSourceRun, getSources, type CrawlRun, type Source } from "@/entities/source";
@@ -13,22 +14,14 @@ import { StatusBadge } from "@/shared/ui/status-badge";
 
 const POLL_INTERVAL_MS = 2000;
 
-function typeTooltip(type: Source["type"]): string {
-  return type === "DYNAMIC"
-    ? "Dynamic (JS-rendered) pages → uses Puppeteer"
-    : "Static pages → uses Axios + Cheerio";
-}
-
-function formatDelay(delayMs: number): string {
-  return `${delayMs.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} ms`;
-}
-
 export function SourcesPage() {
   const { token, handleUnauthorized } = useRequireAuth();
   const [sources, setSources] = useState<Source[] | null>(null);
   const [runs, setRuns] = useState<Record<number, CrawlRun | null>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
   const [crawlAllPending, setCrawlAllPending] = useState(false);
+  const [clearSearchDataPending, setClearSearchDataPending] = useState(false);
+  const [clearCachePending, setClearCachePending] = useState(false);
 
   const loadRuns = useCallback(
     async (sourceIds: number[]) => {
@@ -102,7 +95,60 @@ export function SourcesPage() {
     }
   }
 
+  async function handleClearSearchData() {
+    if (!token) return;
+    if (
+      !window.confirm(
+        "Clear ALL Elasticsearch search data? This deletes every crawled vacancy for every source (not just this one) and resets every source's crawl status back to never-run. Any running crawl is stopped first. This cannot be undone.",
+      )
+    ) {
+      return;
+    }
+    setClearSearchDataPending(true);
+    try {
+      await clearSearchData(token);
+      // Clearing resets every source's crawl status back to never-run (CrawlRun history is
+      // wiped along with the ES data) — refresh so the list doesn't keep showing stale badges.
+      if (sources) await loadRuns(sources.map((source) => source.id));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      setLoadError("Failed to clear search data");
+    } finally {
+      setClearSearchDataPending(false);
+    }
+  }
+
+  async function handleClearCache() {
+    if (!token) return;
+    if (
+      !window.confirm(
+        "Clear all Redis data (rate limits + page cache)? The next crawl of any source will re-fetch from scratch instead of reusing cached pages.",
+      )
+    ) {
+      return;
+    }
+    setClearCachePending(true);
+    try {
+      await clearCache(token);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      setLoadError("Failed to clear cache");
+    } finally {
+      setClearCachePending(false);
+    }
+  }
+
   const error = actionError ?? loadError;
+  // While either global clear action is in flight, block starting/restarting/stopping any crawl
+  // and crawl-all — those actions would race the clear (the backend now rejects/serializes them
+  // safely, but disabling here avoids the user hitting a rejected request in the first place).
+  const anyClearPending = clearSearchDataPending || clearCachePending;
 
   if (!token) return null;
 
@@ -115,14 +161,36 @@ export function SourcesPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Predefined data sources</CardTitle>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={crawlAllPending}
-                onClick={handleCrawlAll}
-              >
-                Crawl all
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="text-destructive"
+                  title="Clear Redis Data"
+                  disabled={anyClearPending}
+                  onClick={handleClearCache}
+                >
+                  Clear cache
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="text-destructive"
+                  title="Clear All ES Data"
+                  disabled={anyClearPending}
+                  onClick={handleClearSearchData}
+                >
+                  Clear search data
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={crawlAllPending || anyClearPending}
+                  onClick={handleCrawlAll}
+                >
+                  Crawl all
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -132,32 +200,21 @@ export function SourcesPage() {
               <div className="flex flex-col gap-2">
                 {sources.map((source) => {
                   const run = runs[source.id];
+                  const detailHref = `/sources/${source.id}`;
                   return (
                     <div
                       key={source.id}
                       className="flex flex-wrap items-center justify-between gap-y-2 gap-x-2 rounded-lg border border-border p-2.5"
                     >
-                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <div className="flex min-w-0 flex-1 items-center gap-1">
+                        <span className="text-sm text-muted-foreground">{source.id}.</span>
                         <Link
-                          href={`/sources/${source.id}`}
-                          className="truncate text-sm font-medium hover:underline"
+                          href={detailHref}
+                          title={detailHref}
+                          className="truncate text-sm font-medium underline"
                         >
                           {source.name}
                         </Link>
-                        <p className="truncate text-xs text-muted-foreground">
-                          <a
-                            href={source.baseUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-link hover:underline"
-                          >
-                            {source.baseUrl}
-                          </a>
-                          {" - "}
-                          <span title={typeTooltip(source.type)}>{source.type}</span>
-                          {" - "}
-                          {formatDelay(source.defaultDelayMs)}
-                        </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-3">
                         <StatusBadge status={run?.status ?? "PENDING"} />
@@ -166,7 +223,7 @@ export function SourcesPage() {
                             variant="secondary"
                             size="sm"
                             className="w-20"
-                            disabled={pendingId === source.id}
+                            disabled={pendingId === source.id || anyClearPending}
                             onClick={() => stop(source.id)}
                           >
                             Stop
@@ -176,7 +233,7 @@ export function SourcesPage() {
                             variant="secondary"
                             size="sm"
                             className="w-20"
-                            disabled={pendingId === source.id}
+                            disabled={pendingId === source.id || anyClearPending}
                             onClick={() => start(source.id)}
                           >
                             {run ? "Restart" : "Start"}

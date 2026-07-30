@@ -93,7 +93,7 @@ See `.claude/features/FEATURE_VACANCY_DETAIL_CRAWL.md`.
   for similar roles, not the employer's own figure — storing it as `salary` would misrepresent
   the source, so it's intentionally left out.
 - **No cap on how many vacancies get a detail fetch per run** — every vacancy found by the
-  listing pass is detail-crawled, bounded only by the existing `maxPagesPerRun`. Detail requests
+  listing pass is detail-crawled, bounded only by the existing `maxPagesToCrawl`. Detail requests
   share the same per-source rate limiter as the listing crawl (`habr_career`'s seeded
   `defaultDelayMs` is 12s), so a full run can take several minutes by design — crawling
   politeness was prioritized over run speed for this project.

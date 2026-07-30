@@ -46,7 +46,7 @@
 2. The **crawl runner** (in-process, fire-and-forget — no queue/worker pool) picks the matching
    `CrawlStrategy` for the source via `getStrategy(source)`. A source without a real strategy yet
    logs a `WARN` `CrawlLog` and is skipped rather than failing.
-3. The strategy fetches the listing page(s) (bounded by `maxPagesPerRun`), respecting **Redis**
+3. The strategy fetches the listing page(s) (bounded by `maxPagesToCrawl`), respecting **Redis**
    rate limiting (`defaultDelayMs`, keyed by `sourceId`) and a short-TTL Redis page cache; parses
    vacancies; upserts each into **Elasticsearch**, deduplicated by `sourceId:externalId`.
 4. If the strategy has an `enrichDetails` step (currently only `habr_career`'s does), it then
@@ -93,7 +93,7 @@
 | isActive         | boolean       | default `true`                                     |
 | respectRobotsTxt | boolean       | default `true`                                     |
 | defaultDelayMs   | int           | default `2000`; per-source rate-limit interval     |
-| maxPagesPerRun   | int           | default `1`; bounds listing-page pagination depth  |
+| maxPagesToCrawl  | int           | default `1`; bounds listing-page pagination depth per crawl |
 | createdAt        | timestamp     |                                                     |
 | updatedAt        | timestamp     |                                                     |
 

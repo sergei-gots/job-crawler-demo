@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { handleError } from "../utils/errors.js";
 import {
+  clearSourceData,
   getSourceById,
   getSourceRun,
   getSourceVacancies,
@@ -89,6 +90,21 @@ export async function postCrawlStop(req: Request, res: Response): Promise<void> 
   try {
     const run = await stopSourceCrawl(id);
     res.status(200).json({ run });
+  } catch (error) {
+    handleError(res, error, "sources");
+  }
+}
+
+export async function postClearData(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid source id" });
+    return;
+  }
+
+  try {
+    await clearSourceData(id);
+    res.status(204).send();
   } catch (error) {
     handleError(res, error, "sources");
   }

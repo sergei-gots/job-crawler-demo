@@ -5,6 +5,7 @@ import {
   getSource,
   getSources,
   getVacancies,
+  postClearData,
   postCrawl,
   postCrawlAll,
   postCrawlStop,
@@ -20,3 +21,4 @@ sourcesRouter.get("/:id/vacancies", getVacancies);
 sourcesRouter.get("/:id/run", getRun);
 sourcesRouter.post("/:id/crawl", postCrawl);
 sourcesRouter.post("/:id/crawl/stop", postCrawlStop);
+sourcesRouter.post("/:id/clear-data", postClearData);

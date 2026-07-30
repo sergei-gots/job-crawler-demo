@@ -28,7 +28,8 @@ Create a clean, well-structured MVP that demonstrates the full tech stack: TypeS
 
 ### Frontend (`apps/web`)
 
-- **Next.js + React** — Dashboard SPA, organized with **Feature-Sliced Design (FSD)**.
+- **Next.js + React** — a crawler management console SPA, organized with **Feature-Sliced
+  Design (FSD)**.
   Reuses the FSD skeleton and auth flow patterns from the Expense Tracker project
   (login/register, `entities/session`, `useRequireAuth`, `shared/lib/api.ts`, `shared/ui`),
   but talks to **our Express API** — we do NOT adopt NestJS.
@@ -44,7 +45,7 @@ Given a 2-week timeline, MVP scope is **one source, done well**, rather than thr
 
 | Key              | Site                     | Status   | Type (`CrawlSource.type`)                                     | Notes                                                        |
 | ---------------- | ------------------------ | -------- | -------------------------------------------------------------- | ------------------------------------------------------------- |
-| `habr_career`    | career.habr.com          | MVP      | `DYNAMIC` — but the vacancies listing was found fully server-rendered on a manual check; Puppeteer may not actually be required, re-verify when building the real crawler | RU tech jobs; good fit for AI skill-extraction demo |
+| `habr_career`    | career.habr.com          | MVP      | `STATIC` — confirmed fully server-rendered (both the listing and, per Increment 2.2, the vacancy detail pages); crawled with Axios+Cheerio, no Puppeteer needed | RU tech jobs; good fit for AI skill-extraction demo |
 | `remoteok`       | remoteok.com             | post-MVP | `DYNAMIC` — `robots.txt` looks permissive (`Crawl-delay: 1`), but the site actively returns `403` on a plain non-browser request (Cloudflare bot check); a real browser/Puppeteer is needed to get past the wall, not just to render JS | Tech jobs with ready-made skill tags — good AI skill-extraction fit; replaces `moikrug` |
 | `weworkremotely` | weworkremotely.com       | post-MVP | `STATIC` — `robots.txt` is `Allow: /` aside from account/admin paths; listings confirmed server-rendered on a manual check | Simple, long-established scraper-friendly job board |
 | `craigslist`     | craigslist.org (SW jobs) | post-MVP | `STATIC` — listings are server-rendered and accessible without login on a single request, but craigslist has a documented history of legal/technical enforcement against scrapers (e.g. the 3taps/PadMapper case); expect rate-limiting or CAPTCHA under sustained automated access even though a one-off check looks simple | International example, multiple cities |
@@ -142,7 +143,7 @@ As a user I can:
 3. Start / Stop a crawl for a source, or crawl all sources at once — crawling is a shared,
    global operation (not scoped to me); any logged-in user can trigger it (see Security
    Considerations). Crawl strategy, delay, and page depth are not configurable per run — they
-   come from the selected `CrawlSource`'s own `type`/`defaultDelayMs`/`maxPagesPerRun`.
+   come from the selected `CrawlSource`'s own `type`/`defaultDelayMs`/`maxPagesToCrawl`.
 4. See the status and progress of a source's crawl runs, including execution logs
 5. Search through all collected vacancies using Elasticsearch — free text plus facets
    (Specialization, Seniority level, Remote/On-site, Location, Company) and relevance sorting
@@ -292,6 +293,20 @@ requires them.
   default `text-foreground` — no separate color introduced for `WARN` yet. First use: the Source
   detail page's Execution logs panel (`widgets/source-detail/ui/source-detail-page.tsx`). Extend
   this pattern (not a new ad-hoc color) if/when `WARN` gets its own styling.
+- **Data-wiping admin actions ("Clear cache", "Clear search data", "Clear data") use
+  `variant="secondary"` (same fill/weight as every other secondary button — not the unused
+  `destructive` variant, and not de-emphasized via icon-only the way item-level Delete is) plus
+  `text-destructive` on the label, so the warning reads through text color alone. This is a
+  deliberate exception to the earlier "de-emphasize destructive actions" call (icon-only Delete
+  on a single Crawler Job, pre-Increment-3a) — these actions are more consequential (wipe the
+  *entire* shared Redis cache or Elasticsearch corpus, or one source's full crawl history, not
+  one item a user owns), so they warrant a clearer visual warning, not less. All three pair the
+  color with a `window.confirm()` dialog before acting — the color signals severity, the dialog
+  is what actually gates the action. `--destructive` itself (`app/globals.css`) was darkened from
+  the shadcn default (`oklch(0.577 0.245 27.325)` → `oklch(0.45 0.19 27.325)`, light theme only)
+  after visual review — the default read as too bright/alarming for a button label; the darker
+  value also applies to the `CrawlLog` `ERROR` color above, sharing one token rather than adding
+  a second red.
 
 ## Testing Philosophy
 

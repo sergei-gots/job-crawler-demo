@@ -1,6 +1,7 @@
 import "dotenv/config";
 import cors from "cors";
 import express from "express";
+import { adminRouter } from "./admin/admin.routes.js";
 import { authRouter } from "./auth/auth.routes.js";
 import { logger } from "./config/logger.js";
 import { sourcesRouter } from "./sources/sources.routes.js";
@@ -19,6 +20,7 @@ app.get("/health", (_req, res) => {
 app.use("/auth", authRouter);
 app.use("/users", usersRouter);
 app.use("/sources", sourcesRouter);
+app.use("/admin", adminRouter);
 
 app.listen(port, () => {
   logger.info(`API listening on http://localhost:${port}`);

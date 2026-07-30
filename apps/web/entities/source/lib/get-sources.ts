@@ -10,6 +10,7 @@ export interface Source {
   isActive: boolean;
   respectRobotsTxt: boolean;
   defaultDelayMs: number;
+  maxPagesToCrawl: number;
 }
 
 export async function getSources(token: string): Promise<Source[]> {
