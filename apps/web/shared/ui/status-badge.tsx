@@ -12,7 +12,7 @@ const STATUS_STYLES: Record<string, string> = {
 // static emoji, since it's the one status that's actually still in progress.
 const STATUS_ICONS: Partial<Record<string, string>> = {
   COMPLETED: "✅",
-  STOPPED: "🧱",
+  STOPPED: "⛔", // the "no entry" road sign — the Russian "кирпич" ("brick") slang term
   FAILED: "❌",
 };
 

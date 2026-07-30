@@ -308,7 +308,8 @@ requires them.
   value also applies to the `CrawlLog` `ERROR` color above, sharing one token rather than adding
   a second red.
 - **`StatusBadge` (`shared/ui/status-badge.tsx`) appends a status icon, not just color.**
-  `COMPLETED` → ✅, `STOPPED` → 🧱, `FAILED` → ❌; `PENDING` gets no icon (nothing has happened
+  `COMPLETED` → ✅, `STOPPED` → ⛔ (the "no entry" road sign — Russian slang "кирпич"/"brick" for
+  this sign, not a literal masonry brick), `FAILED` → ❌; `PENDING` gets no icon (nothing has happened
   yet). `RUNNING` gets an animated spinner (`animate-spin`, a small current-color ring) instead
   of a static emoji, since it's the one status that's genuinely still in progress — a still emoji
   would misrepresent that. Extend `STATUS_ICONS` (not a parallel lookup) for any future status.
