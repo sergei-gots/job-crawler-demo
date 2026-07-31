@@ -30,7 +30,7 @@ export function LoginForm() {
     try {
       const result = await login(values);
       setToken(result.accessToken);
-      router.push("/dashboard");
+      router.push("/about");
     } catch (error) {
       setServerError(error instanceof ApiError ? error.message : "Something went wrong");
     }

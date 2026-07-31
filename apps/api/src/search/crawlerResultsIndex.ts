@@ -61,3 +61,9 @@ export async function ensureCrawlerResultsIndex(): Promise<void> {
 
   indexEnsured = true;
 }
+
+/** Forces the next `ensureCrawlerResultsIndex` call to re-check/recreate the index — call this
+ * after deleting the index out-of-band (e.g. an admin "clear search data" action). */
+export function resetCrawlerResultsIndexCache(): void {
+  indexEnsured = false;
+}

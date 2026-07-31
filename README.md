@@ -32,46 +32,53 @@ See `CLAUDE.md` for the full spec and `ARCHITECTURE.md` for data models and comp
   Pages: login/register, a protected dashboard stub, and a profile page (edit name, change
   password).
 
-### Sources & Crawler Jobs — Increment 1
+### Sources & Crawling — Increment 1 → 3a
 
-See `.claude/features/FEATIRE_SOURCES_AND_JOBS.md`.
+See `.claude/features/FEATIRE_SOURCES_AND_JOBS.md` (original Increment 1 design) and
+`.claude/features/FEATURE_CRAWL_SEARCH_SEPARATION.md` (Increment 3a refactor — supersedes the
+per-user `CrawlerJob` model described in that original doc).
 
-- Prisma models: `CrawlSource`, `CrawlerJob`, `JobLog`.
+- Prisma models: `CrawlSource`, `CrawlRun`, `CrawlLog`.
 - Seeded with four sources (matches `CLAUDE.md` → Data Sources):
   - Habr Career
   - RemoteOK
   - WeWorkRemotely
   - Craigslist
-- Endpoints (all user-scoped, behind JWT auth):
+- Crawling is a shared, global operation, not owned per user — any logged-in user can trigger a
+  crawl of any source, or crawl all sources at once (see `CLAUDE.md` → Security Considerations).
+- Endpoints (behind JWT auth; no per-user ownership check, since crawling has no owner):
   - `GET /sources`
   - `GET /sources/:id`
-  - `GET /crawler-jobs`
-  - `POST /crawler-jobs`
-  - `GET /crawler-jobs/:id`
-  - `POST /crawler-jobs/:id/start`
-  - `POST /crawler-jobs/:id/stop`
+  - `POST /sources/:id/crawl`
+  - `POST /sources/:id/crawl/stop`
+  - `POST /sources/crawl-all`
+  - `GET /sources/:id/run` (the source's latest `CrawlRun`, with its `CrawlLog[]`)
 - Frontend:
-  - `entities/source`, `entities/crawler-job`
-  - `features/create-crawler-job`, `features/run-crawler-job`
-  - `widgets/sources`, `widgets/crawler-jobs`, `widgets/crawler-job-detail`
-  - Pages: `/sources`, `/crawler-jobs`, `/crawler-jobs/[id]`
+  - `entities/source`
+  - `features/run-crawl`
+  - `widgets/sources`, `widgets/source-detail`
+  - Pages: `/sources`, `/sources/[id]`
+
+Increment 1 originally built this around a per-user `CrawlerJob` entity (pick sources + keywords,
+own your own crawler jobs). Increment 3a removed it: `keywords` was always a read-time
+Elasticsearch filter, never a crawl parameter, so bundling "which sources to crawl" with "how to
+filter results" mixed two unrelated concerns. Crawling now lives directly on Sources; filtering/
+search moved to its own page (Increment 3b).
 
 ### Real crawler + Redis + minimal Elasticsearch — Increment 2
 
 See `.claude/features/FEATURE_REAL_CRAWLER_REDIS_ES.md`.
 
-- `POST /crawler-jobs/:id/start` runs a real Axios+Cheerio crawl of `career.habr.com` — the only
-  source with a parser so far (Puppeteer turned out unnecessary; see the doc's spike notes).
-  Other seeded sources log a `WARN` and are skipped rather than failing the job.
+- Crawling a source runs a real Axios+Cheerio crawl of `career.habr.com` — the only source with a
+  parser so far (Puppeteer turned out unnecessary; see the doc's spike notes). Other seeded
+  sources log a `WARN` and are skipped rather than failing the run.
 - Redis (`apps/api/src/crawler/`) provides per-source rate limiting and a short-TTL raw-page
   cache.
 - Elasticsearch (`apps/api/src/search/`) stores parsed vacancies, deduplicated by
   `sourceId:externalId`.
-- New read endpoints:
-  - `GET /sources/:id/vacancies`
-  - `GET /crawler-jobs/:id/vacancies`
-- A simple vacancy list on the crawler job detail page — see "Checking crawled data" below.
-- No AI enrichment and no Coveo-like search/facet UI yet.
+- Read endpoint: `GET /sources/:id/vacancies`.
+- A simple vacancy list on the Source detail page — see "Checking crawled data" below.
+- No AI enrichment and no Coveo-like search/facet UI yet (Increment 3b).
 
 ### Vacancy detail crawl — Increment 2.2
 
@@ -86,32 +93,19 @@ See `.claude/features/FEATURE_VACANCY_DETAIL_CRAWL.md`.
   for similar roles, not the employer's own figure — storing it as `salary` would misrepresent
   the source, so it's intentionally left out.
 - **No cap on how many vacancies get a detail fetch per run** — every vacancy found by the
-  listing pass is detail-crawled, bounded only by the existing `maxPagesPerRun`. Detail requests
+  listing pass is detail-crawled, bounded only by the existing `maxPagesToCrawl`. Detail requests
   share the same per-source rate limiter as the listing crawl (`habr_career`'s seeded
   `defaultDelayMs` is 12s), so a full run can take several minutes by design — crawling
   politeness was prioritized over run speed for this project.
-- `Keywords` on a Crawler Job now also matches against `description` (previously just
-  `title`/`company`). The match is **OR-based**: `"docker, kubernetes"` finds vacancies
-  containing *either* word, not necessarily both — a hint under the field in both the Create and
-  Edit forms documents this.
-- Each vacancy on the crawler job detail page has a small **"View raw ES data"** button that
-  toggles a pretty-printed JSON dump of that vacancy's Elasticsearch document inline (the exact
-  same object returned by `GET /crawler-jobs/:id/vacancies`, no extra API call). Purely
-  illustrative — this is a demo app, so the button makes the underlying Elasticsearch storage
-  visible rather than hiding it behind the UI. Hovering the button shows a tooltip with the
-  document's direct ES REST URL (`http://localhost:9200/crawler_results/_doc/{sourceId}:{externalId}`)
-  for anyone who wants to `curl` it themselves.
-
-### Crawler job editing & deletion
-
-- New endpoints (user-scoped, behind JWT auth; both reject with `400` if the job is `RUNNING`):
-  - `PATCH /crawler-jobs/:id`
-  - `DELETE /crawler-jobs/:id`
-- Frontend: `features/edit-crawler-job`, `features/delete-crawler-job`. Edit/Delete buttons on
-  both the crawler jobs list and the job detail page, hidden while a job is `RUNNING`. Edit opens
-  an inline form (reusing the create form's fields, prefilled); Delete asks for confirmation
-  first.
-- See `CLAUDE.md` → Security Considerations for the ownership/authorization model these follow.
+- Each vacancy on the Source detail page has a small **"View raw ES data"** button that toggles a
+  pretty-printed JSON dump of that vacancy's Elasticsearch document inline (the exact same object
+  returned by `GET /sources/:id/vacancies`, no extra API call). Purely illustrative — this is a
+  demo app, so the button makes the underlying Elasticsearch storage visible rather than hiding
+  it behind the UI. Hovering the button shows a tooltip with the document's direct ES REST URL
+  (`http://localhost:9200/crawler_results/_doc/{sourceId}:{externalId}`) for anyone who wants to
+  `curl` it themselves.
+- The `description`-aware keyword matching this increment added carries forward into
+  Increment 3b's global search endpoint — see that section once it lands.
 
 ### Not yet implemented
 
@@ -199,7 +193,7 @@ delegating to the matching command inside that workspace via `npm run <script> -
 
 ## Checking crawled data
 
-There's no full vacancy list in the UI yet beyond the crawler job detail page's simple list (see
+There's no full vacancy list in the UI yet beyond the Source detail page's simple list (see
 Increment 2 above) — the **Execution logs** panel on that page shows crawl progress, not the
 parsed results themselves. Two ways to see everything that was actually crawled:
 
@@ -220,11 +214,8 @@ All vacancies collected for one source (Habr Career is source id `1` in the defa
 curl -s http://localhost:4000/sources/1/vacancies -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
 ```
 
-Vacancies for one crawler job, filtered by that job's keywords:
-
-```bash
-curl -s http://localhost:4000/crawler-jobs/<job-id>/vacancies -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
-```
+(A global, keyword+facet search across every source's vacancies is planned for Increment 3b —
+see `.claude/features/FEATURE_CRAWL_SEARCH_SEPARATION.md`.)
 
 ### Option B — query Elasticsearch directly
 
@@ -247,7 +238,7 @@ The raw HTML page fetched per crawl (listing pages and, since Increment 2.2, eac
 detail page) is cached in Redis for 1 hour (`PAGE_CACHE_TTL_SECONDS` in
 `apps/api/src/crawler/pageCache.ts`) — long enough to cover a full habr_career run (~15 min at
 the seeded rate limit), short enough to not matter for freshness. Two runs more than an hour
-apart will both hit the network; two runs within that window will show `cache: hit` in `JobLog`
+apart will both hit the network; two runs within that window will show `cache: hit` in `CrawlLog`
 for pages already fetched.
 
 ## Project structure

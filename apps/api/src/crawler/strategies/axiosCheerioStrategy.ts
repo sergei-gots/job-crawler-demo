@@ -108,7 +108,7 @@ function parseHabrVacancyDetail(html: string): Partial<RawVacancy> {
 
 /**
  * Handles habr_career's vacancy listing, confirmed server-rendered (no JS execution needed) via
- * a manual curl check, even though CrawlSource.type is seeded as DYNAMIC. Selectors are specific
+ * a manual curl check — CrawlSource.type is seeded as STATIC accordingly. Selectors are specific
  * to habr_career's markup, not a generic HTML scraper.
  */
 export const axiosCheerioStrategy: CrawlStrategy = {
@@ -116,7 +116,7 @@ export const axiosCheerioStrategy: CrawlStrategy = {
     const vacancies: RawVacancy[] = [];
     const pageLogs: string[] = [];
 
-    for (let page = 1; page <= source.maxPagesPerRun; page += 1) {
+    for (let page = 1; page <= source.maxPagesToCrawl; page += 1) {
       const pageUrl = new URL("/vacancies", source.baseUrl);
       if (page > 1) pageUrl.searchParams.set("page", String(page));
 
@@ -140,7 +140,7 @@ export const axiosCheerioStrategy: CrawlStrategy = {
   },
 
   // No cap on how many vacancies get a detail fetch — every vacancy from the listing pass is
-  // enriched, every run. The only volume bound is `source.maxPagesPerRun` (already applied
+  // enriched, every run. The only volume bound is `source.maxPagesToCrawl` (already applied
   // above). This was a deliberate choice: an earlier draft capped detail fetches separately,
   // but that created a "ragged data" problem (the same first-N vacancies enriched forever while
   // the rest never were). Detail requests share the listing's own rate limiter/cache, so a full

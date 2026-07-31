@@ -16,7 +16,93 @@ AI Enrichment" below for where the line is drawn and why.
 
 ## Status
 
-**Planned — not yet implemented.**
+**Implemented** (Increment 2.2, commit `e6222b4`/`a6df20f`) — this doc's Status line was left
+stale (still said "Planned") through the later Increment 3a crawl/search split; corrected
+2026-07-31 to match the code, which has carried this since before 3a.
+
+`description`, `location`, `isRemote`, `skillsSummary` are populated on `habr_career` vacancies
+via `parseHabrVacancyDetail`/`enrichDetails` in
+`apps/api/src/crawler/strategies/axiosCheerioStrategy.ts`, wired into the runner at
+`apps/api/src/crawler/crawlRunner.ts:116`, and rendered on the source detail page
+(`apps/web/widgets/source-detail/ui/source-detail-page.tsx`).
+
+**Superseded by Increment 3a** (`.claude/features/FEATURE_CRAWL_SEARCH_SEPARATION.md`): the
+"Search" and "Data model changes" sections below still refer to the pre-3a `CrawlerJob` entity
+and `queryVacanciesForJob`'s `multi_match`. That entity and its per-job keyword search no longer
+exist — crawling is now triggered directly per `CrawlSource` (`POST /sources/:id/crawl`), and the
+current `queryVacanciesForSource` (`apps/api/src/search/queryVacancies.ts`) is an age-filtered raw
+feed for one source, with no keyword `multi_match` yet. A global keyword+facet search across all
+sources (where a `description` field in `multi_match` would apply) is deferred to Increment 3b
+per that doc — the "Keywords field semantics" and Create/Edit-job-form UI-hint items below never
+landed and don't apply to the current UI (there's no per-job keyword field anymore).
+
+## Post-3a bug: Stop can leave the Vacancies panel showing a stale snapshot (found and fixed 2026-07-31)
+
+**Symptom**: user reported seeing fewer enriched fields (missing `isRemote` etc.) on
+`/sources/:id` than expected, on a vacancy that (per direct ES inspection) *was* actually
+enriched.
+
+**Investigation** (direct queries against the running ES/Postgres containers, not just code
+reading):
+- First hypothesis (wrong, corrected): assumed the underlying two runs had simply been stopped
+  before `enrichDetails` ever started. True for that specific earlier case (`crawl_runs` ids
+  50/51 — `runState.cancelled` flipped true before the `!runState.cancelled` guard at
+  `crawlRunner.ts:116` was reached, so `enrichDetails` never ran for those runs at all), but not
+  what was happening on the next reproduction.
+- Second reproduction: `CrawlLog` showed `enrichDetails` running normally and reaching vacancy
+  8/25 before "Stopped by user". Direct ES lookup of the specific vacancy the user had copy-pasted
+  (`3:1000166920`) showed it **was** fully enriched, with `lastSeenAt` **7 seconds after** the
+  "Stopped by user" log line — i.e. the enrichment for that vacancy completed, just after the
+  page snapshot the user was looking at had been taken.
+- **Root cause**: a frontend race, not a crawler bug. `stopSourceCrawl`
+  (`apps/api/src/sources/sources.service.ts:65`) flips `CrawlRun.status` to `STOPPED`
+  synchronously and returns immediately — it does not wait for the background task
+  (`executeCrawlRun`) to finish whatever single detail fetch was already in flight (cooperative
+  cancellation only stops the *next* iteration from starting, per the "must remain responsive"
+  decision earlier in this doc — deliberately not changed, see below). The frontend
+  (`source-detail-page.tsx`'s `onStopped` handler) treated the `STOPPED` status as "fully
+  settled" and fired exactly one `loadVacancies()` refresh right on that transition — which can
+  race the still-in-flight write (up to roughly `source.defaultDelayMs` + the request's own
+  latency, e.g. ~12-30s for `habr_career`) and miss it. Since the RUNNING poll loop
+  (`source-detail-page.tsx`, `useEffect` gated on `run?.status === "RUNNING"`) stops as soon as
+  status leaves `RUNNING`, nothing ever refetches again — the stale snapshot stays on screen
+  until a manual page reload.
+
+**Fix applied** (`apps/web/widgets/source-detail/ui/source-detail-page.tsx`): a second `useEffect`
+gated on `run?.status === "STOPPED"` schedules one delayed follow-up `loadRun()` +
+`loadVacancies()`, sized to `source.defaultDelayMs + 10000`ms, cleaned up (`clearTimeout`) if the
+status changes again first (e.g. a new run starts) or the component unmounts. Deliberately
+**not** fixed by making the backend's `stopSourceCrawl` block/await the background task before
+returning (e.g. via the existing `waitUntilNotCrawling` helper already used by
+`clearSourceData`) — that would make the Stop button itself feel unresponsive for up to ~30s,
+directly contradicting the "Stop action must remain responsive" decision already locked in this
+doc's "Scope decisions locked with the user" section. The fix stays purely client-side: Stop
+still returns instantly, the UI just knows to check again once the trailing write has had time to
+land.
+
+## Considered and rejected: clearing a source's ES data before every crawl restart
+
+Raised by the user while investigating the above (**"should a source restart clear all of that
+source's existing ES data first?"**) — considered and rejected, not implemented:
+
+- **Why it looks appealing**: would guarantee no stale-looking leftover data from a previous run.
+- **Why it's wrong**: `CrawlerResultDoc`s are deduplicated by `sourceId:externalId` and
+  accumulate *across* runs by design (`CLAUDE.md`'s data model) — this is what lets a source's
+  visible corpus exceed what any single run's `maxPagesToCrawl` budget covers (e.g. `habr_career`
+  at 1 page = 25 vacancies per run today). A vacancy seen on page 2 of an earlier run but not
+  present on page 1 of the current run's page budget is still a real, live vacancy — clearing on
+  restart would delete it just because pagination didn't re-surface it this time, permanently
+  capping the visible corpus at one run's page budget instead of letting it converge toward full
+  coverage over multiple runs.
+- **The staleness problem this would try to solve is already handled correctly, just
+  gradually**: `queryVacanciesForSource` (`apps/api/src/search/queryVacancies.ts`) filters by
+  `MAX_VACANCY_AGE_DAYS` (14 days default) against `lastSeenAt` — a vacancy that stops being
+  re-seen ages out of results on its own, without an all-or-nothing wipe.
+- **A wipe is already available as an explicit, separate action** — the "Clear data" admin
+  button (`clearSourceData`) — for when the user genuinely wants to reset a source. Auto-clearing
+  on every restart would make that action redundant and remove the user's ability to choose.
+- **Decision: no change** — a crawl restart stays a pure upsert against the existing corpus, as
+  it is today.
 
 ## Naming note
 
@@ -207,12 +293,16 @@ pages (~150 cards) for statistical checks.
 
 ## Implementation steps
 
-- [ ] Extend `RawVacancy` type with optional detail fields.
-- [ ] Extend `CrawlerResultDoc` / index mapping with the new fields.
-- [ ] Implement `parseHabrVacancyDetail` + `enrichDetails` in `axiosCheerioStrategy.ts`.
-- [ ] Wire `enrichDetails` into the runner, with `JobLog` progress lines and cooperative
-      cancellation inside the detail-fetch loop.
-- [ ] Extend `queryVacanciesForJob`'s `multi_match` fields to include `description`.
-- [ ] Add the Keywords OR-matching hint text to Create and Edit forms.
-- [ ] Update `README.md` with the habr_career detail-crawl note and Keywords behavior.
-- [ ] Manual verification per the checklist above.
+- [x] Extend `RawVacancy` type with optional detail fields.
+- [x] Extend `CrawlerResultDoc` / index mapping with the new fields.
+- [x] Implement `parseHabrVacancyDetail` + `enrichDetails` in `axiosCheerioStrategy.ts`.
+- [x] Wire `enrichDetails` into the runner, with progress logs and cooperative cancellation
+      inside the detail-fetch loop (now `crawlRunner.ts`, post-3a).
+- [ ] ~~Extend `queryVacanciesForJob`'s `multi_match` fields to include `description`.~~ N/A —
+      `CrawlerJob`/`queryVacanciesForJob` no longer exist post-3a; global keyword search over
+      `description` is deferred to Increment 3b (`FEATURE_CRAWL_SEARCH_SEPARATION.md`).
+- [ ] ~~Add the Keywords OR-matching hint text to Create and Edit forms.~~ N/A — those forms
+      (per-`CrawlerJob` keywords) no longer exist post-3a.
+- [x] Update `README.md` with the habr_career detail-crawl note (salary intentionally omitted,
+      run duration) — see "Vacancy detail crawl — Increment 2.2" section.
+- [x] Manual verification per the checklist above (confirmed working on `/sources/:id`).
