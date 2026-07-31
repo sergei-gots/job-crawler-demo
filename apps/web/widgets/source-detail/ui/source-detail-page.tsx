@@ -106,6 +106,22 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
     return () => clearInterval(interval);
   }, [run?.status, loadRun]);
 
+  useEffect(() => {
+    if (run?.status !== "STOPPED") return;
+    // `stopSourceCrawl` flips CrawlRun to STOPPED synchronously, but the background task may
+    // still be finishing one already-in-flight, rate-limited detail fetch when it does (Stop
+    // only stops the *next* iteration from starting — see crawlRunner.ts). The immediate refresh
+    // above (triggered by the RUNNING->STOPPED transition) can race that trailing write and miss
+    // it, with no further poll afterwards to pick it up. One delayed follow-up, sized to the
+    // source's own rate limit plus a buffer for the request itself, catches it.
+    const delayMs = (source?.defaultDelayMs ?? 12000) + 10000;
+    const timeout = setTimeout(() => {
+      void loadRun();
+      void loadVacancies();
+    }, delayMs);
+    return () => clearTimeout(timeout);
+  }, [run?.status, source?.defaultDelayMs, loadRun, loadVacancies]);
+
   const patchRun = useCallback((updated: CrawlRun) => {
     // The server clears CrawlLog history when a run (re)starts; reflect that immediately instead
     // of waiting for the next poll. Subsequent log lines arrive via the RUNNING poll above.
