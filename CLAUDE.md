@@ -63,7 +63,7 @@ listing crawl plus per-vacancy detail crawl — see the "Real crawler..." and "V
 crawl..." features in `.claude/features/`); the other three don't have a parser yet, so
 triggering a crawl for them (or using "crawl all") logs a `WARN` and skips them rather than
 failing the run. Crawling is triggered directly per source via `POST /sources/:id/crawl` — see
-`.claude/features/FEATURE_CRAWL_SEARCH_SEPARATION.md` — there is no separate job entity that
+`.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md` — there is no separate job entity that
 picks which sources to run.
 
 For each source we define: `type` (`STATIC`/`DYNAMIC` — determines Axios+Cheerio vs Puppeteer),
@@ -120,9 +120,17 @@ updated) as part of that work — not after. These docs are the durable record o
 code shows *what* was built, the doc captures the reasoning, the alternatives rejected, and the
 decisions locked with the user so they aren't silently re-litigated later.
 
-- **Naming**: `FEATURE_<SHORT_NAME>.md`, uppercase snake case (e.g.
-  `FEATURE_VACANCY_DETAIL_CRAWL.md`). (One legacy file is misspelled `FEATIRE_...` — don't copy
-  that; new docs use `FEATURE_`.)
+- **Naming**: `<NN>[letter]_FEATURE_<SHORT_NAME>.md`, uppercase snake case, prefixed with the
+  increment number so the directory listing sorts in build order (e.g.
+  `02_FEATURE_REAL_CRAWLER_REDIS_ES.md` for Increment 2, `02b_FEATURE_VACANCY_DETAIL_CRAWL.md`
+  for the Increment 2.2 sub-increment that follows it, `03_FEATURE_CRAWL_SEARCH_SEPARATION.md` for
+  Increment 3). Use a trailing lowercase letter (`b`, `c`, ...) for a `.N` sub-increment rather
+  than a literal dot — a dot sorts *before* the parent increment's own file in a plain
+  alphabetical listing (`ls`, `sort`), putting `2.2` ahead of `2`; a letter suffix sorts after it,
+  so the listing order matches build order. The doc's own title/content still says "Increment
+  2.2" in prose — only the filename uses the letter form. When starting a new top-level increment,
+  take the next integer; when it's a sub-step of the increment you're currently in, append the
+  next letter to that increment's number instead of incrementing.
 - **Contents**, roughly in this order: a **Context/Overview** (the problem and intended outcome),
   a **Status** line (Planned / Implemented / etc.), **decisions locked with the user** (each with
   its rationale, so they read as settled, not open), explicit **scope boundaries** (what's
@@ -189,7 +197,7 @@ Full field definitions live in `ARCHITECTURE.md`. Core entities:
   the source from abuse (repeated/overlapping crawl requests), not per-user gating.
 - **No RBAC yet.** A production deployment would gate crawl-triggering behind an admin role; this
   MVP deliberately treats every logged-in user as trusted to trigger crawls — see
-  `.claude/features/FEATURE_CRAWL_SEARCH_SEPARATION.md` for why this was deferred rather than
+  `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md` for why this was deferred rather than
   built now.
 - **Search is read-only and unscoped** — the search endpoint returns matches from the whole
   shared corpus; there's nothing to authorize per-result since nothing is owned per user.

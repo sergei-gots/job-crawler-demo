@@ -34,8 +34,8 @@ See `CLAUDE.md` for the full spec and `ARCHITECTURE.md` for data models and comp
 
 ### Sources & Crawling — Increment 1 → 3a
 
-See `.claude/features/FEATIRE_SOURCES_AND_JOBS.md` (original Increment 1 design) and
-`.claude/features/FEATURE_CRAWL_SEARCH_SEPARATION.md` (Increment 3a refactor — supersedes the
+See `.claude/features/01_FEATURE_SOURCES_AND_JOBS.md` (original Increment 1 design) and
+`.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md` (Increment 3a refactor — supersedes the
 per-user `CrawlerJob` model described in that original doc).
 
 - Prisma models: `CrawlSource`, `CrawlRun`, `CrawlLog`.
@@ -67,7 +67,7 @@ search moved to its own page (Increment 3b).
 
 ### Real crawler + Redis + minimal Elasticsearch — Increment 2
 
-See `.claude/features/FEATURE_REAL_CRAWLER_REDIS_ES.md`.
+See `.claude/features/02_FEATURE_REAL_CRAWLER_REDIS_ES.md`.
 
 - Crawling a source runs a real Axios+Cheerio crawl of `career.habr.com` — the only source with a
   parser so far (Puppeteer turned out unnecessary; see the doc's spike notes). Other seeded
@@ -82,7 +82,7 @@ See `.claude/features/FEATURE_REAL_CRAWLER_REDIS_ES.md`.
 
 ### Vacancy detail crawl — Increment 2.2
 
-See `.claude/features/FEATURE_VACANCY_DETAIL_CRAWL.md`.
+See `.claude/features/02b_FEATURE_VACANCY_DETAIL_CRAWL.md`.
 
 - After crawling the `habr_career` listing page(s), each vacancy's own detail page is fetched too
   and parsed via its `schema.org/JobPosting` JSON-LD block — adding `description`, `location`,
@@ -215,7 +215,7 @@ curl -s http://localhost:4000/sources/1/vacancies -H "Authorization: Bearer $TOK
 ```
 
 (A global, keyword+facet search across every source's vacancies is planned for Increment 3b —
-see `.claude/features/FEATURE_CRAWL_SEARCH_SEPARATION.md`.)
+see `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`.)
 
 ### Option B — query Elasticsearch directly
 

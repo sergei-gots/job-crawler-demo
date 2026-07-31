@@ -14,7 +14,7 @@ function staleCutoffIso(): string {
 /**
  * Raw feed for one source, age-filtered only. A global, keyword+facet search across every
  * source's vacancies is planned for Increment 3b — see
- * `.claude/features/FEATURE_CRAWL_SEARCH_SEPARATION.md`.
+ * `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`.
  */
 export async function queryVacanciesForSource(sourceId: number): Promise<CrawlerResultDoc[]> {
   await ensureCrawlerResultsIndex();

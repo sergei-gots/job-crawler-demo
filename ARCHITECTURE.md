@@ -36,9 +36,9 @@
 > **Status**: steps 1–4 below are implemented for `habr_career` (Axios+Cheerio listing crawl +
 > per-vacancy detail crawl). Step 5 (AI enrichment) is not implemented — no `AIEnricher` code
 > exists yet, mocked or otherwise. Step 6 (Coveo-like search/facets) is planned for Increment 3b.
-> See `.claude/features/FEATURE_REAL_CRAWLER_REDIS_ES.md`,
-> `.claude/features/FEATURE_VACANCY_DETAIL_CRAWL.md`, and
-> `.claude/features/FEATURE_CRAWL_SEARCH_SEPARATION.md` for how this evolved and what's next.
+> See `.claude/features/02_FEATURE_REAL_CRAWLER_REDIS_ES.md`,
+> `.claude/features/02b_FEATURE_VACANCY_DETAIL_CRAWL.md`, and
+> `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md` for how this evolved and what's next.
 
 1. Any logged-in user triggers a crawl of a **CrawlSource** (`POST /sources/:id/crawl`, or "crawl
    all") — crawling is a shared, global operation, not owned per user (see `CLAUDE.md`'s Security
@@ -127,9 +127,9 @@ status-conditioned write plus an in-process cancellation map, the same pattern t
 | description    | text          | plain text (HTML stripped), from the detail page       |
 | location       | text \| null  |                                                         |
 | isRemote       | boolean \| null |                                                       |
-| skillsSummary  | text \| null  | source's own auto-generated skills sentence, raw (not split into an array — see `FEATURE_VACANCY_DETAIL_CRAWL.md`) |
+| skillsSummary  | text \| null  | source's own auto-generated skills sentence, raw (not split into an array — see `02b_FEATURE_VACANCY_DETAIL_CRAWL.md`) |
 
-No `salary` field — deliberately not collected; see `FEATURE_VACANCY_DETAIL_CRAWL.md`'s spike
+No `salary` field — deliberately not collected; see `02b_FEATURE_VACANCY_DETAIL_CRAWL.md`'s spike
 findings (habr almost never discloses it, and the only visible number is a market estimate, not
 the employer's own figure). No `userId`/`jobId` — the corpus is shared, not scoped to a run or
 user. AI-enrichment fields (`summary`, `skills[]`, `category`) and Increment 3b's facet fields
