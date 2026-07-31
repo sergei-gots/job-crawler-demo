@@ -21,7 +21,7 @@ export function SearchPage() {
             <p className="text-sm text-muted-foreground">
               Free-text search and facets (Specialization, Seniority level, Remote/On-site,
               Location, Company) across every crawled vacancy - planned for Increment 3b. See{" "}
-              <code>.claude/features/FEATURE_CRAWL_SEARCH_SEPARATION.md</code>.
+              <code>.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md</code>.
             </p>
           </CardContent>
         </Card>

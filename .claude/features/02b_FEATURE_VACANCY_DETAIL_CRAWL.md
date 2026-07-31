@@ -2,7 +2,7 @@
 
 ## Overview
 
-Builds on `.claude/features/FEATURE_REAL_CRAWLER_REDIS_ES.md` (Increment 2 — real habr_career
+Builds on `.claude/features/02_FEATURE_REAL_CRAWLER_REDIS_ES.md` (Increment 2 — real habr_career
 listing crawl, Redis, minimal Elasticsearch). That increment only fetched listing page(s) and
 stored `title`/`company`/`url`/`postedAt`. This increment adds a second pass: for each vacancy
 found on the listing, fetch its own detail page and pull richer fields into the same
@@ -26,7 +26,7 @@ via `parseHabrVacancyDetail`/`enrichDetails` in
 `apps/api/src/crawler/crawlRunner.ts:116`, and rendered on the source detail page
 (`apps/web/widgets/source-detail/ui/source-detail-page.tsx`).
 
-**Superseded by Increment 3a** (`.claude/features/FEATURE_CRAWL_SEARCH_SEPARATION.md`): the
+**Superseded by Increment 3a** (`.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`): the
 "Search" and "Data model changes" sections below still refer to the pre-3a `CrawlerJob` entity
 and `queryVacanciesForJob`'s `multi_match`. That entity and its per-job keyword search no longer
 exist — crawling is now triggered directly per `CrawlSource` (`POST /sources/:id/crawl`), and the
@@ -300,7 +300,7 @@ pages (~150 cards) for statistical checks.
       inside the detail-fetch loop (now `crawlRunner.ts`, post-3a).
 - [ ] ~~Extend `queryVacanciesForJob`'s `multi_match` fields to include `description`.~~ N/A —
       `CrawlerJob`/`queryVacanciesForJob` no longer exist post-3a; global keyword search over
-      `description` is deferred to Increment 3b (`FEATURE_CRAWL_SEARCH_SEPARATION.md`).
+      `description` is deferred to Increment 3b (`03_FEATURE_CRAWL_SEARCH_SEPARATION.md`).
 - [ ] ~~Add the Keywords OR-matching hint text to Create and Edit forms.~~ N/A — those forms
       (per-`CrawlerJob` keywords) no longer exist post-3a.
 - [x] Update `README.md` with the habr_career detail-crawl note (salary intentionally omitted,

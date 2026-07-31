@@ -5,7 +5,7 @@
 Replaces the Increment 1 **mock** in-process runner with a real crawl of the MVP source, adds
 Redis for source-level rate limiting and a short-TTL raw-page cache, and adds a minimal
 Elasticsearch-backed vacancy store so crawled results are actually visible. Builds on
-`.claude/features/FEATIRE_SOURCES_AND_JOBS.md` (Sources and Crawler Jobs CRUD, Increment 1).
+`.claude/features/01_FEATURE_SOURCES_AND_JOBS.md` (Sources and Crawler Jobs CRUD, Increment 1).
 
 **Goal**: `POST /crawler-jobs/:id/start` performs a real Axios+Cheerio crawl of `habr_career`,
 writes real progress to `JobLog`, stores parsed vacancies in Elasticsearch, and exposes them via

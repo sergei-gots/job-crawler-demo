@@ -159,10 +159,10 @@ User can view live logs and later search results
 - [x] Create backend controllers and services
 - [x] Build React pages (Crawler Jobs + Sources)
 - [ ] Integrate Redis for rate limiting (deferred — see §3) — planned in
-      `.claude/features/FEATURE_REAL_CRAWLER_REDIS_ES.md` (Increment 2)
+      `.claude/features/02_FEATURE_REAL_CRAWLER_REDIS_ES.md` (Increment 2)
 - [ ] Replace the mock runner with real crawling (Axios/Cheerio + Puppeteer per `CrawlSource.type`)
-      — planned in `.claude/features/FEATURE_REAL_CRAWLER_REDIS_ES.md` (Increment 2)
+      — planned in `.claude/features/02_FEATURE_REAL_CRAWLER_REDIS_ES.md` (Increment 2)
 - [ ] AI enrichment + Elasticsearch storage + `GET /api/search` — minimal Elasticsearch vacancy
       storage (no AI enrichment yet) planned in
-      `.claude/features/FEATURE_REAL_CRAWLER_REDIS_ES.md` (Increment 2); AI enrichment and the
+      `.claude/features/02_FEATURE_REAL_CRAWLER_REDIS_ES.md` (Increment 2); AI enrichment and the
       full Coveo-like search layer remain deferred beyond that
