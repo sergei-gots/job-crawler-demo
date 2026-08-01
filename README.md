@@ -78,7 +78,7 @@ See `.claude/features/02_FEATURE_REAL_CRAWLER_REDIS_ES.md`.
   `sourceId:externalId`.
 - Read endpoint: `GET /sources/:id/vacancies`.
 - A simple vacancy list on the Source detail page — see "Checking crawled data" below.
-- No AI enrichment and no Coveo-like search/facet UI yet (Increment 3b).
+- No AI enrichment yet.
 
 ### Vacancy detail crawl — Increment 2.2
 
@@ -105,12 +105,36 @@ See `.claude/features/02b_FEATURE_VACANCY_DETAIL_CRAWL.md`.
   (`http://localhost:9200/crawler_results/_doc/{sourceId}:{externalId}`) for anyone who wants to
   `curl` it themselves.
 - The `description`-aware keyword matching this increment added carries forward into
-  Increment 3b's global search endpoint — see that section once it lands.
+  Increment 3b's global search endpoint below.
+
+### Faceted vacancy search — Increment 3b
+
+See `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`'s Phase 3b section.
+
+- `parseHabrVacancyDetail` also extracts `specialization` and `seniority` from the same stable
+  habr lead-sentence template already parsed for `skillsSummary` (`"... Квалификация: <seniority>.
+  Специализации: <specialization>."`) — still template parsing, not AI interpretation. Each clause
+  is matched independently by its own label, so a vacancy missing one clause (e.g. no
+  `Квалификация`) just gets `null` for that field rather than misattributing text.
+- `location` and `company` gained a `.keyword` sub-field in the Elasticsearch mapping so they're
+  aggregatable (for facets) as well as full-text-searchable (for `q`). As with the 2.2 fields,
+  existing documents only pick these up once they're re-crawled — not retroactively.
+- New endpoint: `GET /vacancies/search` (global, not per-source) — query params `q` (free text
+  over title/company/description, OR semantics) plus repeatable facet params `specialization`,
+  `seniority`, `isRemote`, `location`, `company`. Returns `{ hits, facets }`, where `facets` is
+  `terms`-aggregation bucket counts per facet field for the current filtered set. *Known
+  simplification*: every facet's counts include its own active selection (no `post_filter`), so
+  they show "how many results this selection already has," not "how many more if I add this
+  option" — flagged as deliberate, not a bug.
+- New Search page (`/search`) — free-text input, a facet panel (Specialization / Seniority level /
+  Remote / On-site, each a checkbox group with bucket counts), and a results list reusing the same
+  `VacancyCard` component as the Source detail page (`entities/vacancy/ui/`). This is the app's
+  first two-column page layout — a deliberate, scoped exception to the single-column convention
+  documented in `CLAUDE.md`'s UI Design Guidelines.
 
 ### Not yet implemented
 
 - AI enrichment
-- Coveo-like search/facet UI
 - Additional source parsers (RemoteOK, WeWorkRemotely, Craigslist)
 
 Track progress against the MVP plan in `CLAUDE.md` → User Stories.
@@ -214,8 +238,12 @@ All vacancies collected for one source (Habr Career is source id `1` in the defa
 curl -s http://localhost:4000/sources/1/vacancies -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
 ```
 
-(A global, keyword+facet search across every source's vacancies is planned for Increment 3b —
-see `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`.)
+A global, keyword+facet search across every source's vacancies:
+
+```bash
+curl -s "http://localhost:4000/vacancies/search?q=python&isRemote=true&seniority=Middle" \
+  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+```
 
 ### Option B — query Elasticsearch directly
 

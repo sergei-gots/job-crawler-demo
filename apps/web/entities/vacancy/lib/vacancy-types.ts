@@ -11,4 +11,6 @@ export interface Vacancy {
   location?: string | null;
   isRemote?: boolean | null;
   skillsSummary?: string | null;
+  specialization?: string | null;
+  seniority?: string | null;
 }

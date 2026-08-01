@@ -1,9 +1,9 @@
 # ARCHITECTURE.md — Job-Crawler-Demo
 
 > High-level architecture and data models. For scope, standards and stack see `CLAUDE.md`.
-> This file describes the **current/target** state of the system as of Increment 3a (Separate
-> Crawling from Search) — for how earlier increments got here, and decisions that were locked
-> along the way, see `.claude/features/`.
+> This file describes the **current/target** state of the system as of Increment 3b (Separate
+> Crawling from Search, faceted search) — for how earlier increments got here, and decisions that
+> were locked along the way, see `.claude/features/`.
 
 ## Component overview
 
@@ -33,9 +33,9 @@
 
 ## Data flow (one crawl run)
 
-> **Status**: steps 1–4 below are implemented for `habr_career` (Axios+Cheerio listing crawl +
-> per-vacancy detail crawl). Step 5 (AI enrichment) is not implemented — no `AIEnricher` code
-> exists yet, mocked or otherwise. Step 6 (Coveo-like search/facets) is planned for Increment 3b.
+> **Status**: steps 1–4 and 6 below are implemented for `habr_career` (Axios+Cheerio listing crawl
+> + per-vacancy detail crawl + faceted search). Step 5 (AI enrichment) is not implemented — no
+> `AIEnricher` code exists yet, mocked or otherwise.
 > See `.claude/features/02_FEATURE_REAL_CRAWLER_REDIS_ES.md`,
 > `.claude/features/02b_FEATURE_VACANCY_DETAIL_CRAWL.md`, and
 > `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md` for how this evolved and what's next.
@@ -55,9 +55,10 @@
    rows throughout (one line per page/vacancy, not just a start/end summary).
 5. *(Not yet built)* Each result would pass through an **AIEnricher** (`MockAIEnricher` → real
    Claude API) for summary/skill-extraction/categorization before/alongside indexing.
-6. *(Increment 3b)* Users search the shared corpus via a **Coveo-like layer** (free text +
-   facets: Specialization, Seniority level, Remote/On-site, Location, Company + relevance sorting)
-   over Elasticsearch — not scoped to any run or user.
+6. Users search the shared corpus via a **Coveo-like layer** (`GET /vacancies/search` — free text
+   over title/company/description plus facets: Specialization, Seniority level, Remote/On-site,
+   Location, Company, each with `terms`-aggregation bucket counts) over Elasticsearch — not scoped
+   to any run or user.
 7. The run finishes → `CrawlRun.status` → `COMPLETED` (or `FAILED`/`STOPPED`).
 
 ## Storage responsibilities
@@ -125,16 +126,18 @@ status-conditioned write plus an in-process cancellation map, the same pattern t
 | firstSeenAt    | date          | set once, on first upsert                              |
 | lastSeenAt     | date          | bumped on every re-crawl                               |
 | description    | text          | plain text (HTML stripped), from the detail page       |
-| location       | text \| null  |                                                         |
+| location       | text \| null  | also has a `.keyword` sub-field (Increment 3b) for facet aggregation, alongside the full-text `location` field |
 | isRemote       | boolean \| null |                                                       |
 | skillsSummary  | text \| null  | source's own auto-generated skills sentence, raw (not split into an array — see `02b_FEATURE_VACANCY_DETAIL_CRAWL.md`) |
+| specialization | keyword \| null | Increment 3b — parsed from the same lead-sentence template as `skillsSummary` |
+| seniority      | keyword \| null | Increment 3b — parsed from the same lead-sentence template as `skillsSummary` |
 
-No `salary` field — deliberately not collected; see `02b_FEATURE_VACANCY_DETAIL_CRAWL.md`'s spike
+`company` also gained a `.keyword` sub-field (Increment 3b), same reasoning as `location`. No
+`salary` field — deliberately not collected; see `02b_FEATURE_VACANCY_DETAIL_CRAWL.md`'s spike
 findings (habr almost never discloses it, and the only visible number is a market estimate, not
 the employer's own figure). No `userId`/`jobId` — the corpus is shared, not scoped to a run or
-user. AI-enrichment fields (`summary`, `skills[]`, `category`) and Increment 3b's facet fields
-(`specialization`, `seniority`) are not yet part of this schema — they'll be added to this table
-as part of the increments that actually build them, per `CLAUDE.md`'s "keep docs in sync" rule.
+user. AI-enrichment fields (`summary`, `skills[]`, `category`) are not yet part of this schema —
+they'll be added as part of the increment that actually builds `AIEnricher`.
 
 ### CrawlLog (PostgreSQL)
 | Field      | Type                   | Notes                            |
@@ -157,7 +160,8 @@ as part of the increments that actually build them, per `CLAUDE.md`'s "keep docs
 - **`AIEnricher`** — *not yet implemented*. Planned interface: `enrich(raw): Promise<Enrichment>`;
   planned implementations: `MockAIEnricher` first, `ClaudeEnricher` (real Claude API) later,
   swapped via config/env.
-- **`SearchService`** (Coveo-like, Increment 3b) — *not yet implemented*. Planned:
-  `search(query, facets, sort): Promise<SearchResponse>` wrapping Elasticsearch (free-text
-  `multi_match` + `terms` facet filters + `terms` aggregations for facet counts); hides ES query
-  DSL from controllers.
+- **`searchVacancies`** (Coveo-like, Increment 3b — `apps/api/src/search/queryVacancies.ts`) —
+  `searchVacancies(filters): Promise<VacancySearchResult>` wrapping Elasticsearch: free-text
+  `multi_match` over title/company/description + `terms` facet filters + `terms` aggregations for
+  facet counts. No relevance-sort control yet (ES's default `_score` ordering only); hides ES
+  query DSL from the `vacancies` module's controller/service.

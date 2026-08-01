@@ -68,6 +68,17 @@ function findJobPosting($: ReturnType<typeof cheerio.load>): HabrJobPosting | nu
 }
 
 /**
+ * Pulls a single labeled clause (e.g. `"Квалификация: Middle."`) out of habr's auto-generated
+ * lead sentence. Matched independently per label rather than by splitting the whole sentence on
+ * position, because the template's clauses ("Навыки:", "Квалификация:", "Специализации:") aren't
+ * all always present — a positional split would misattribute text when one is missing.
+ */
+function extractLabeledClause(skillsSummary: string, label: string): string | null {
+  const match = skillsSummary.match(new RegExp(`${label}:\\s*([^.]+)\\.`));
+  return match ? match[1].trim() : null;
+}
+
+/**
  * Parses habr_career's vacancy detail page via its schema.org/JobPosting JSON-LD block —
  * confirmed present on every real vacancy page checked (8/8), and far more stable than scraping
  * the page's ad-hoc CSS classes since it's the same structured data habr exposes for Google Jobs
@@ -97,12 +108,18 @@ function parseHabrVacancyDetail(html: string): Partial<RawVacancy> {
 
   const leadParagraph = $description("p").first().text().trim();
   const skillsSummary = leadParagraph.startsWith("Навыки") ? leadParagraph : null;
+  const seniority = skillsSummary ? extractLabeledClause(skillsSummary, "Квалификация") : null;
+  const specialization = skillsSummary
+    ? extractLabeledClause(skillsSummary, "Специализации")
+    : null;
 
   return {
     description,
     location: jobPosting.jobLocation?.[0]?.address ?? null,
     isRemote: jobPosting.jobLocationType === "TELECOMMUTE",
     skillsSummary,
+    seniority,
+    specialization,
   };
 }
 

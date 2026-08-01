@@ -232,7 +232,11 @@ requires them.
   login/register; `justify-start p-4 md:p-8` for the main content area next to the sidebar) — this
   is the current choice for login/register too. Standalone marketing/auth screens may use centered
   layouts if explicitly designed that way (e.g. a future landing page) — this isn't a blanket ban,
-  just the default for everything we've built so far.
+  just the default for everything we've built so far. Content width is also single-column
+  `max-w-3xl` everywhere so far (`max-w-lg` for About) — the Search page (Increment 3b) is a
+  deliberate, scoped exception: a wider container with a facet panel beside the results list,
+  because a faceted-search UI genuinely needs two columns, not a signal to start widening other
+  pages. See `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`'s Phase 3b decisions.
 - **Boxed sections, not flat lists.** Any logically distinct block of UI (a form, the sidebar's
   user info, the sidebar's nav) is wrapped in `shared/ui/card.tsx`'s `Card`/`CardHeader`/
   `CardTitle`/`CardDescription`/`CardContent` — not a bare `<div>`.

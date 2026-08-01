@@ -13,7 +13,7 @@ import {
   type CrawlRunWithLogs,
   type Source,
 } from "@/entities/source";
-import type { Vacancy } from "@/entities/vacancy";
+import { VacancyCard, vacancyKey, type Vacancy } from "@/entities/vacancy";
 import { ApiError } from "@/shared/lib/api";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
@@ -306,60 +306,16 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
                 ) : (
                   <div className="flex flex-col gap-2">
                     {pagedVacancies.map((vacancy, index) => {
-                      const vacancyKey = `${vacancy.sourceId}:${vacancy.externalId}`;
-                      const isRawExpanded = expandedRawVacancyIds.has(vacancyKey);
+                      const key = vacancyKey(vacancy);
                       const ordinal = (vacanciesPage - 1) * VACANCIES_PAGE_SIZE + index + 1;
                       return (
-                        <div key={vacancyKey} className="rounded-lg border border-border p-2.5">
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="min-w-0 text-sm">
-                              <span className="text-muted-foreground">{ordinal}. </span>
-                              <a
-                                href={vacancy.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="font-medium text-link hover:underline"
-                              >
-                                {vacancy.title}
-                              </a>
-                            </p>
-                            {vacancy.isRemote && (
-                              <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
-                                Remote
-                              </span>
-                            )}
-                          </div>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="mt-1.5 w-fit"
-                            title={`http://localhost:9200/crawler_results/_doc/${vacancyKey}`}
-                            onClick={() => toggleRawVacancy(vacancyKey)}
-                          >
-                            {isRawExpanded ? "Hide raw ES data" : "View raw ES data"}
-                          </Button>
-                          {isRawExpanded && (
-                            <pre className="mt-1.5 overflow-x-auto rounded-lg border border-border bg-muted p-2 text-xs text-foreground">
-                              {JSON.stringify(vacancy, null, 2)}
-                            </pre>
-                          )}
-                          <p className="mt-1.5 text-xs text-muted-foreground">
-                            {vacancy.company ?? "Unknown company"}
-                            {vacancy.location && ` - ${vacancy.location}`}
-                            {vacancy.postedAt &&
-                              ` - posted ${new Date(vacancy.postedAt).toLocaleDateString()}`}
-                          </p>
-                          {vacancy.skillsSummary && (
-                            <p className="mt-1.5 text-xs text-muted-foreground">
-                              {vacancy.skillsSummary}
-                            </p>
-                          )}
-                          {vacancy.description && (
-                            <p className="mt-1.5 line-clamp-2 text-xs text-foreground">
-                              {vacancy.description}
-                            </p>
-                          )}
-                        </div>
+                        <VacancyCard
+                          key={key}
+                          vacancy={vacancy}
+                          ordinal={ordinal}
+                          isRawExpanded={expandedRawVacancyIds.has(key)}
+                          onToggleRaw={() => toggleRawVacancy(key)}
+                        />
                       );
                     })}
                   </div>

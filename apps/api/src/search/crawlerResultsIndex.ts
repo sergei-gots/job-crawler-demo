@@ -15,23 +15,30 @@ export interface CrawlerResultDoc {
   location?: string | null;
   isRemote?: boolean | null;
   skillsSummary?: string | null;
+  specialization?: string | null;
+  seniority?: string | null;
 }
 
 let indexEnsured = false;
 
+// `location`/`company` carry a `.keyword` sub-field so they stay full-text-searchable (the base
+// `text` field, used by `multi_match`) while also being aggregatable for facets (the `keyword`
+// sub-field, used by `terms` aggregations) — a plain `text` field can't be aggregated directly.
 const CRAWLER_RESULTS_PROPERTIES = {
   sourceId: { type: "integer" as const },
   externalId: { type: "keyword" as const },
   title: { type: "text" as const },
-  company: { type: "text" as const },
+  company: { type: "text" as const, fields: { keyword: { type: "keyword" as const } } },
   url: { type: "keyword" as const },
   postedAt: { type: "date" as const },
   firstSeenAt: { type: "date" as const },
   lastSeenAt: { type: "date" as const },
   description: { type: "text" as const },
-  location: { type: "text" as const },
+  location: { type: "text" as const, fields: { keyword: { type: "keyword" as const } } },
   isRemote: { type: "boolean" as const },
   skillsSummary: { type: "text" as const },
+  specialization: { type: "keyword" as const },
+  seniority: { type: "keyword" as const },
 };
 
 /**

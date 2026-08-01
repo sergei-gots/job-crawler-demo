@@ -6,6 +6,7 @@ import { authRouter } from "./auth/auth.routes.js";
 import { logger } from "./config/logger.js";
 import { sourcesRouter } from "./sources/sources.routes.js";
 import { usersRouter } from "./users/users.routes.js";
+import { vacanciesRouter } from "./vacancies/vacancies.routes.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
@@ -20,6 +21,7 @@ app.get("/health", (_req, res) => {
 app.use("/auth", authRouter);
 app.use("/users", usersRouter);
 app.use("/sources", sourcesRouter);
+app.use("/vacancies", vacanciesRouter);
 app.use("/admin", adminRouter);
 
 app.listen(port, () => {

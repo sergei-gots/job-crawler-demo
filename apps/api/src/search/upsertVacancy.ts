@@ -20,6 +20,8 @@ export async function upsertVacancy(raw: RawVacancy): Promise<void> {
     ...(raw.location !== undefined ? { location: raw.location } : {}),
     ...(raw.isRemote !== undefined ? { isRemote: raw.isRemote } : {}),
     ...(raw.skillsSummary !== undefined ? { skillsSummary: raw.skillsSummary } : {}),
+    ...(raw.specialization !== undefined ? { specialization: raw.specialization } : {}),
+    ...(raw.seniority !== undefined ? { seniority: raw.seniority } : {}),
   };
 
   await esClient.update({

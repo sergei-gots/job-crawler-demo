@@ -31,7 +31,9 @@ This is a large change, so it's split into two increments sharing this one doc:
 ## Status
 
 **Phase 3a: Implemented and manually verified** (docs, backend, frontend all landed on branch
-`feat/crawl-search-separation-3a`). **Phase 3b (Search page with facets): Planned, not started.**
+`feat/crawl-search-separation-3a`). **Phase 3b (Search page with facets): Implemented, backend
+verified end-to-end (2026-07-31); frontend awaiting the user's manual browser pass per `CLAUDE.md`
+Testing Philosophy — see the Verification checklist below for what's confirmed vs. still open.**
 
 ## Target information architecture
 
@@ -147,6 +149,39 @@ Elasticsearch — no change in Phase 3a. Phase 3b adds fields/mappings (see belo
 
 ## Phase 3b — Search page with facets
 
+### Decisions locked with the user (2026-07-31, before implementation)
+
+- **Layout: two-column, not the app's usual single-column `max-w-3xl`.** Every other page
+  (Sources, Source detail, About, login) uses one left-aligned column per `CLAUDE.md`'s UI
+  guidelines. Search is the first page where that doesn't fit — a facet panel needs to sit
+  alongside results, not stack above them (stacking was considered and rejected: with 3 facets
+  stacked over results, the page consumes most of the fold before reaching a single vacancy).
+  **Chosen**: a wider container (`max-w-5xl`/`6xl`, TBD to taste once built), a fixed-width facet
+  `Card` on the left (`Specialization` / `Seniority level` / `Remote / On-site`), results list on
+  the right. This is a deliberate, scoped exception to the single-column rule, not a precedent for
+  every future page — `CLAUDE.md`'s UI guidelines get a short note recording it as such.
+- **Remote/On-site facet: two checkboxes, not one toggle.** `☐ Remote (N)` and `☐ On-site (N)`,
+  consistent with how every other facet renders (a checkbox group with per-bucket counts) rather
+  than a special-cased single boolean control. Both selected (or neither) means no `isRemote`
+  filter is applied.
+- **Pagination: reuse the Source detail page's pattern** — fetch a bounded set (`size: 200`, same
+  cap as `queryVacanciesForSource`) per query and paginate client-side, `VACANCIES_PAGE_SIZE`
+  (10) per page. Not real server-side `from/size` pagination — the whole corpus is one source
+  today and comfortably fits one ES round-trip; a facet-aggregation request already has to touch
+  the full filtered set regardless of which results page is showing, so `from/size` paging would
+  save rendering, not query, cost. Revisit if the corpus meaningfully grows once more sources ship.
+- **Vacancy card becomes a shared component**, not duplicated: extract the card currently inline
+  in `source-detail-page.tsx` (title/link, Remote badge, company, location, postedAt,
+  skillsSummary, description preview, "View raw ES data" toggle) into `entities/vacancy/ui/`, and
+  have both the Source detail page and the new Search page render it. Per FSD, `entities/vacancy`
+  is the right home (both a widget and the search feature depend on it, never the reverse).
+- **New backend route lives in its own `apps/api/src/vacancies/` module** (`vacancies.routes.ts`
+  mounted at `/vacancies`, `vacancies.controller.ts`, `vacancies.service.ts` wrapping the new
+  `search/` query builder) — mirrors the existing `sources`/`admin`/`users` module shape rather
+  than bolting a controller onto `search/`, which stays query/ES-plumbing only (no Express layer),
+  consistent with the rest of the codebase's `controllers → services → crawler/ai/search/auth`
+  layering from `CLAUDE.md`.
+
 ### Facet data extraction (backend, no new crawling)
 - Extend `parseHabrVacancyDetail` to also pull, from the same stable habr template sentence already
   parsed for `skillsSummary` (`"Навыки: … Квалификация: <Seniority>. Специализации: <Specialization>."`):
@@ -204,9 +239,20 @@ Elasticsearch — no change in Phase 3a. Phase 3b adds fields/mappings (see belo
 - Confirm the old `/crawler-jobs` routes and UI are gone and nothing links to them.
 
 **Phase 3b**:
-- After a fresh crawl, `GET /vacancies/search` returns hits + non-empty facet buckets for
-  specialization/seniority/remote/location/company.
-- Selecting a facet value narrows the results; typing in the free-text box narrows via
-  `multi_match`; combining facets + text works.
-- A vacancy whose template had no `Квалификация` clause has `seniority: null` and simply doesn't
-  appear under any seniority bucket (no crash, no empty-string bucket).
+- [x] After a fresh crawl, `GET /vacancies/search` returns hits + non-empty facet buckets for
+      specialization/seniority/remote/location/company. Verified directly (2026-07-31): triggered
+      a real `habr_career` crawl against a scratch API instance, confirmed newly-enriched
+      vacancies carried `specialization`/`seniority`, and that `location`/`company` `.keyword`
+      aggregations populated (buckets were empty for older, not-yet-re-crawled docs, as the design
+      doc predicted). Also caught and fixed a real bug this way: the `isRemote` boolean facet
+      initially returned raw ES bucket keys (`"0"`/`"1"`) instead of `key_as_string`
+      (`"true"`/`"false"`) — fixed in `queryVacancies.ts`'s `bucketsFor`.
+- [x] A vacancy whose template had no `Квалификация` clause has `seniority: null` and simply
+      doesn't appear under any seniority bucket (no crash, no empty-string bucket). Confirmed live
+      — "Системный администратор (импортозамещение, Ред Софт)" enriched with
+      `seniority: null`/`specialization` populated, no error, no stray bucket.
+- [ ] Selecting a facet value narrows the results; typing in the free-text box narrows via
+      `multi_match`; combining facets + text works. **Not yet verified — browser testing is the
+      user's manual pass per `CLAUDE.md` Testing Philosophy, not automated by Claude.**
+- [ ] Two-column Search page layout, checkbox facet groups with bucket counts, and the shared
+      `VacancyCard` rendering correctly — same manual browser pass.
