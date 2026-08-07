@@ -12,6 +12,8 @@ export interface RawVacancy {
   location?: string | null;
   isRemote?: boolean | null;
   skillsSummary?: string | null;
+  specialization?: string | null;
+  seniority?: string | null;
 }
 
 export interface CrawlResult {

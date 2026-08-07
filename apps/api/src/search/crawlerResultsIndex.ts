@@ -1,6 +1,20 @@
+import { logger } from "../config/logger.js";
 import { esClient } from "./esClient.js";
 
 export const CRAWLER_RESULTS_INDEX = "crawler_results";
+
+/**
+ * Bump this whenever `CRAWLER_RESULTS_PROPERTIES` changes in a way existing indexed docs won't
+ * satisfy (new field, changed sub-field, changed type). It's stamped into the index mapping's
+ * `_meta` on creation; `ensureCrawlerResultsIndex` compares the live index's stored version
+ * against this and rebuilds the index on a mismatch — see that function's doc comment.
+ *
+ * History: v1 = original mapping; v2 = added `company.keyword`/`location.keyword` sub-fields and
+ * the `specialization`/`seniority` keyword fields (Increment 3b faceted search); v3 = added
+ * `title.suggest`/`company.suggest` (lowercase-normalized keyword sub-fields) for the Increment 3c
+ * autocomplete suggestions endpoint.
+ */
+export const CRAWLER_RESULTS_SCHEMA_VERSION = 3;
 
 export interface CrawlerResultDoc {
   sourceId: number;
@@ -15,50 +29,113 @@ export interface CrawlerResultDoc {
   location?: string | null;
   isRemote?: boolean | null;
   skillsSummary?: string | null;
+  specialization?: string | null;
+  seniority?: string | null;
 }
 
 let indexEnsured = false;
 
+// A lowercase-only normalizer (no tokenization) for the `.suggest` sub-fields below — lets
+// autocomplete prefix-match case-insensitively while still aggregating on whole, exact values
+// (unlike a `text` analyzer, which would tokenize "Job Crawler" into separate "job"/"crawler"
+// terms and break whole-value prefix suggestions).
+const CRAWLER_RESULTS_SETTINGS = {
+  analysis: {
+    normalizer: {
+      lowercase_normalizer: { type: "custom" as const, filter: ["lowercase"] },
+    },
+  },
+};
+
+// `location`/`company` carry a `.keyword` sub-field so they stay full-text-searchable (the base
+// `text` field, used by `multi_match`) while also being aggregatable for facets (the `keyword`
+// sub-field, used by `terms` aggregations) — a plain `text` field can't be aggregated directly.
+// `title`/`company` additionally carry a `.suggest` sub-field (Increment 3c) — a *separate*
+// keyword sub-field from `.keyword`, normalized lowercase for case-insensitive autocomplete
+// prefix matching. It's kept apart from `company.keyword` deliberately: that field drives the
+// Company facet's exact filter/display and must stay original-case, so lowercasing it in place
+// would corrupt the facet.
 const CRAWLER_RESULTS_PROPERTIES = {
   sourceId: { type: "integer" as const },
   externalId: { type: "keyword" as const },
-  title: { type: "text" as const },
-  company: { type: "text" as const },
+  title: {
+    type: "text" as const,
+    fields: { suggest: { type: "keyword" as const, normalizer: "lowercase_normalizer" } },
+  },
+  company: {
+    type: "text" as const,
+    fields: {
+      keyword: { type: "keyword" as const },
+      suggest: { type: "keyword" as const, normalizer: "lowercase_normalizer" },
+    },
+  },
   url: { type: "keyword" as const },
   postedAt: { type: "date" as const },
   firstSeenAt: { type: "date" as const },
   lastSeenAt: { type: "date" as const },
   description: { type: "text" as const },
-  location: { type: "text" as const },
+  location: { type: "text" as const, fields: { keyword: { type: "keyword" as const } } },
   isRemote: { type: "boolean" as const },
   skillsSummary: { type: "text" as const },
+  specialization: { type: "keyword" as const },
+  seniority: { type: "keyword" as const },
 };
 
+async function createCrawlerResultsIndex(): Promise<void> {
+  await esClient.indices.create({
+    index: CRAWLER_RESULTS_INDEX,
+    settings: CRAWLER_RESULTS_SETTINGS,
+    mappings: {
+      _meta: { schemaVersion: CRAWLER_RESULTS_SCHEMA_VERSION },
+      properties: CRAWLER_RESULTS_PROPERTIES,
+    },
+  });
+}
+
+/** Reads the schema version stamped into the live index's mapping `_meta`, or `null` if the
+ * index predates versioning (created before `_meta.schemaVersion` was written). */
+async function readLiveSchemaVersion(): Promise<number | null> {
+  const mapping = await esClient.indices.getMapping({ index: CRAWLER_RESULTS_INDEX });
+  const meta = mapping[CRAWLER_RESULTS_INDEX]?.mappings?._meta as
+    | { schemaVersion?: unknown }
+    | undefined;
+  return typeof meta?.schemaVersion === "number" ? meta.schemaVersion : null;
+}
+
 /**
- * Creates the index with an explicit mapping on first use. If the index already exists (e.g. a
- * long-running dev/demo instance created it before a later field was added here), applies
- * `putMapping` instead — safe because it only ever adds new fields, it never changes an existing
- * field's type, so this reconciles a pre-existing index with the current schema on every call
- * without needing a separate migration step. A real production deployment with multiple ES
- * versions in the wild would want an explicit mapping-version check instead of doing this on
- * every cold start; not needed for this project's single dev/demo instance.
+ * Ensures the `crawler_results` index exists at the current schema version.
+ *
+ * Elasticsearch here is a derived cache, not the source of truth — every vacancy is re-fetchable
+ * by re-crawling (upserts are idempotent by `sourceId:externalId`). So instead of a
+ * production-grade zero-downtime reindex (copy into a new index + alias swap), we take the
+ * simple route the data model allows: on a schema-version mismatch we delete and recreate the
+ * index empty, then let the normal crawl process repopulate it. This is safe because it touches
+ * only the ES index — crawl history (`CrawlRun`/`CrawlLog`) and all other DB records are left
+ * untouched. The version is stored in the index mapping's `_meta`, so a stale index (including
+ * one created before versioning, which reads as `null`) triggers exactly one rebuild.
  */
 export async function ensureCrawlerResultsIndex(): Promise<void> {
   if (indexEnsured) return;
 
   const exists = await esClient.indices.exists({ index: CRAWLER_RESULTS_INDEX });
-  if (!exists) {
-    await esClient.indices.create({
-      index: CRAWLER_RESULTS_INDEX,
-      mappings: { properties: CRAWLER_RESULTS_PROPERTIES },
-    });
-  } else {
-    await esClient.indices.putMapping({
-      index: CRAWLER_RESULTS_INDEX,
-      properties: CRAWLER_RESULTS_PROPERTIES,
-    });
+  if (exists) {
+    const liveVersion = await readLiveSchemaVersion();
+    if (liveVersion === CRAWLER_RESULTS_SCHEMA_VERSION) {
+      indexEnsured = true;
+      return;
+    }
+    logger.warn(
+      `[search] crawler_results schema version ${liveVersion ?? "unversioned"} != ` +
+        `${CRAWLER_RESULTS_SCHEMA_VERSION}; rebuilding index. Crawl history and DB records are ` +
+        `untouched — re-crawl (per source or "crawl all") to repopulate search data.`,
+    );
+    await esClient.indices.delete({ index: CRAWLER_RESULTS_INDEX }, { ignore: [404] });
   }
 
+  await createCrawlerResultsIndex();
+  logger.info(
+    `[search] crawler_results index ready at schema version ${CRAWLER_RESULTS_SCHEMA_VERSION}.`,
+  );
   indexEnsured = true;
 }
 
