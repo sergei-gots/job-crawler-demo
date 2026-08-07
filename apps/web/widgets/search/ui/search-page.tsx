@@ -10,8 +10,6 @@ import { Input } from "@/shared/ui/input";
 import { PageTitle } from "@/shared/ui/page-title";
 import { FacetGroup } from "./facet-group";
 
-const VACANCIES_PAGE_SIZE = 10;
-
 function remoteLabel(value: string): string {
   return value === "true" ? "Remote" : "On-site";
 }
@@ -31,12 +29,15 @@ export function SearchPage() {
     toggleLocation,
     company,
     toggleCompany,
+    page,
+    setPage,
+    pageSize,
     hits,
+    total,
     facets,
     loading,
     error,
   } = useVacancySearch({ token, handleUnauthorized });
-  const [hitsPage, setHitsPage] = useState(1);
   const [expandedRawVacancyIds, setExpandedRawVacancyIds] = useState<Set<string>>(new Set());
 
   function toggleRawVacancy(key: string) {
@@ -48,21 +49,8 @@ export function SearchPage() {
     });
   }
 
-  const pagedHits = (hits ?? []).slice(
-    (hitsPage - 1) * VACANCIES_PAGE_SIZE,
-    hitsPage * VACANCIES_PAGE_SIZE,
-  );
-  const totalHitsPages = Math.ceil((hits?.length ?? 0) / VACANCIES_PAGE_SIZE);
-
-  // Any filter change should jump back to page 1 of the (new) results — cheapest way to keep
-  // that true without a dedicated effect is to reset here whenever the filters that feed
-  // useVacancySearch's query change, ahead of the paged slice above using a stale page number.
-  const filtersKey = `${query}|${[...specialization].sort()}|${[...seniority].sort()}|${[...remote].sort()}|${[...location].sort()}|${[...company].sort()}`;
-  const [lastFiltersKey, setLastFiltersKey] = useState(filtersKey);
-  if (filtersKey !== lastFiltersKey) {
-    setLastFiltersKey(filtersKey);
-    if (hitsPage !== 1) setHitsPage(1);
-  }
+  // `hits` is already the current page from the server; pagination is driven by the total count.
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   if (!token) return null;
 
@@ -70,7 +58,7 @@ export function SearchPage() {
     <main className="flex flex-1 justify-start p-4 md:p-8">
       <div className="flex w-full max-w-6xl flex-col gap-6">
         <PageTitle>Search</PageTitle>
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
         <Input
           placeholder="Search title, company, description..."
           value={query}
@@ -136,9 +124,9 @@ export function SearchPage() {
                 <p className="text-sm text-muted-foreground">No vacancies match this search.</p>
               ) : (
                 <div className="flex flex-col gap-2">
-                  {pagedHits.map((vacancy, index) => {
+                  {hits.map((vacancy, index) => {
                     const key = vacancyKey(vacancy);
-                    const ordinal = (hitsPage - 1) * VACANCIES_PAGE_SIZE + index + 1;
+                    const ordinal = (page - 1) * pageSize + index + 1;
                     return (
                       <VacancyCard
                         key={key}
@@ -151,24 +139,24 @@ export function SearchPage() {
                   })}
                 </div>
               )}
-              {hits && hits.length > VACANCIES_PAGE_SIZE && (
+              {total > pageSize && (
                 <div className="mt-3 flex items-center justify-between">
                   <Button
                     variant="secondary"
                     size="sm"
-                    disabled={hitsPage === 1}
-                    onClick={() => setHitsPage((p) => p - 1)}
+                    disabled={page === 1}
+                    onClick={() => setPage((p) => p - 1)}
                   >
                     Previous
                   </Button>
                   <p className="text-xs text-muted-foreground">
-                    Page {hitsPage} of {totalHitsPages}
+                    Page {page} of {totalPages}
                   </p>
                   <Button
                     variant="secondary"
                     size="sm"
-                    disabled={hitsPage >= totalHitsPages}
-                    onClick={() => setHitsPage((p) => p + 1)}
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => p + 1)}
                   >
                     Next
                   </Button>

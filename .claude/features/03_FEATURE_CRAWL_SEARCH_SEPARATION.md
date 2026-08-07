@@ -164,12 +164,19 @@ Elasticsearch — no change in Phase 3a. Phase 3b adds fields/mappings (see belo
   consistent with how every other facet renders (a checkbox group with per-bucket counts) rather
   than a special-cased single boolean control. Both selected (or neither) means no `isRemote`
   filter is applied.
-- **Pagination: reuse the Source detail page's pattern** — fetch a bounded set (`size: 200`, same
-  cap as `queryVacanciesForSource`) per query and paginate client-side, `VACANCIES_PAGE_SIZE`
-  (10) per page. Not real server-side `from/size` pagination — the whole corpus is one source
-  today and comfortably fits one ES round-trip; a facet-aggregation request already has to touch
-  the full filtered set regardless of which results page is showing, so `from/size` paging would
-  save rendering, not query, cost. Revisit if the corpus meaningfully grows once more sources ship.
+- **Pagination: server-side `from`/`size` returning a real `total`** (revised 2026-08-07 during
+  code review — supersedes the original "fetch `size: 200` and paginate client-side" plan). The
+  original plan capped hits at 200 while the facet aggregations counted the *whole* filtered match
+  set, so a facet bucket could read a count larger than the number of results a user could actually
+  page through — an inconsistency, and a silent truncation once the corpus passes 200. **Chosen**:
+  `searchVacancies` takes `page`/`pageSize` (default 10, clamped to ≤ 50), issues one ES request
+  with `from`/`size` + `track_total_hits: true`, and returns `{ hits, total, facets }`. The
+  frontend's existing Previous/Next + "Page X of N" control now drives the server page instead of
+  slicing a client-side array; facet counts and the paged result set are computed from the same
+  filtered set, so they stay consistent. `from + size` stays well under ES's default
+  `index.max_result_window` (10 000) at `pageSize ≤ 50` — fine for this corpus; a cursor
+  (`search_after`) approach was considered and rejected as overkill (it breaks random page-jump and
+  isn't needed at this scale).
 - **Vacancy card becomes a shared component**, not duplicated: extract the card currently inline
   in `source-detail-page.tsx` (title/link, Remote badge, company, location, postedAt,
   skillsSummary, description preview, "View raw ES data" toggle) into `entities/vacancy/ui/`, and
@@ -189,12 +196,29 @@ Elasticsearch — no change in Phase 3a. Phase 3b adds fields/mappings (see belo
   - `seniority` — text after `Квалификация:` (Junior/Middle/Senior); often absent → `null`.
   This is still template parsing (crawling), not interpretation. Add both to `RawVacancy`,
   `CrawlerResultDoc`, and the upsert (same conditional-spread pattern already in `upsertVacancy`).
-- **ES mapping** (`crawlerResultsIndex.ts`, via the `putMapping` reconcile path already added in
-  Increment 2.2): add `specialization` and `seniority` as `keyword`; give `location` and `company`
-  a `.keyword` sub-field (`{ type: "text", fields: { keyword: { type: "keyword" } } }`) so they're
-  both full-text-searchable and aggregatable. `isRemote` is already `boolean` (aggregatable as-is).
-- Because these fields only populate on the next crawl, existing docs will lack them until
-  re-crawled — acceptable (age-based staleness churns the corpus anyway).
+- **ES mapping** (`crawlerResultsIndex.ts`): add `specialization` and `seniority` as `keyword`; give
+  `location` and `company` a `.keyword` sub-field (`{ type: "text", fields: { keyword: { type:
+  "keyword" } } }`) so they're both full-text-searchable and aggregatable. `isRemote` is already
+  `boolean` (aggregatable as-is).
+- **Reindex strategy: index-version detection + rebuild-and-repopulate** (revised 2026-08-07 during
+  code review — supersedes the earlier `putMapping` "additive reconcile" path). The problem the
+  review surfaced: `putMapping` reconciles the *mapping* but does not backfill already-indexed docs,
+  so adding the `company.keyword`/`location.keyword` sub-fields left every pre-existing vacancy
+  invisible to the Location/Company facets and filters until re-crawled — and the old code comment
+  overstated this as "reconciles a pre-existing index with the current schema." **Chosen approach**
+  (decided with the user):
+  - Elasticsearch is treated as a **derived cache, not the source of truth** — every vacancy is
+    re-fetchable by re-crawling (`upsertVacancy` is idempotent by `sourceId:externalId`).
+  - `crawlerResultsIndex.ts` exports `CRAWLER_RESULTS_SCHEMA_VERSION` (now `2`), stamped into the
+    index mapping's `_meta` on creation. `ensureCrawlerResultsIndex` reads the live index's stored
+    version and, on a mismatch (including an unversioned pre-existing index → `null`), **deletes and
+    recreates the index empty**, logs a clear WARN/INFO, and lets the normal crawl process
+    repopulate it. Bump the constant on any mapping change that existing docs won't satisfy.
+  - The rebuild touches **only the ES index** — crawl history (`CrawlRun`/`CrawlLog`) and all other
+    Postgres records are left untouched. This is distinct from the admin "Clear search data" action,
+    which also wipes `CrawlRun` history.
+  - **Zero-downtime alias migration (reindex-into-new-index + alias swap) is explicitly out of scope
+    at this stage** — unnecessary for a single dev/demo instance over re-fetchable data.
 
 ### Search endpoint
 - New `GET /vacancies/search` (global — not per-source, not per-job), query params: `q` (free

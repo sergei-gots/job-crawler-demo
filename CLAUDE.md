@@ -171,6 +171,23 @@ Full field definitions live in `ARCHITECTURE.md`. Core entities:
   `sourceId:externalId` across the whole shared corpus.
 - **CrawlLog** — PostgreSQL. Execution log lines per `CrawlRun`.
 
+## Elasticsearch conventions
+
+- **Elasticsearch is a derived search index, not the source of truth.** The `crawler_results`
+  index is a rebuildable projection of crawled data — every vacancy is re-fetchable by re-crawling
+  (`upsertVacancy` is idempotent by `sourceId:externalId`). PostgreSQL holds the authoritative
+  records (users, sources, crawl runs/logs).
+- **Search-index schema changes are handled through index versioning, not in-place migration.**
+  `crawlerResultsIndex.ts` exports `CRAWLER_RESULTS_SCHEMA_VERSION`, stamped into the index
+  mapping's `_meta`. `ensureCrawlerResultsIndex` compares the live index's stored version and, on a
+  mismatch, deletes + recreates the index empty and lets the next crawl repopulate it. Bump the
+  constant whenever the mapping changes in a way existing docs won't satisfy (new field, changed
+  sub-field, changed type). Zero-downtime alias migration is deliberately out of scope for this MVP.
+- **Rebuilding the search index does not affect crawl history or primary data.** A version-mismatch
+  rebuild touches only the ES index; `CrawlRun`/`CrawlLog` and all other Postgres records are left
+  untouched. (The admin "Clear search data" action is the separate, heavier operation that also
+  wipes `CrawlRun` history — see `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`.)
+
 ## Technical Guidelines & Axioms
 
 - All code, documentation, comments, variable names, function names, folder names, and UI text must be in **English**.

@@ -18,4 +18,6 @@ export interface VacancySearchFilters {
   isRemote?: boolean[];
   location?: string[];
   company?: string[];
+  page?: number;
+  pageSize?: number;
 }

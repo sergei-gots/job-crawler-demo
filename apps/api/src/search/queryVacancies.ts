@@ -43,6 +43,8 @@ export interface VacancySearchFilters {
   isRemote?: boolean[];
   location?: string[];
   company?: string[];
+  page?: number;
+  pageSize?: number;
 }
 
 export interface FacetBucket {
@@ -52,6 +54,8 @@ export interface FacetBucket {
 
 export interface VacancySearchResult {
   hits: CrawlerResultDoc[];
+  /** Total number of matching vacancies across all pages (not just the returned page). */
+  total: number;
   facets: {
     specialization: FacetBucket[];
     seniority: FacetBucket[];
@@ -70,6 +74,11 @@ const FACET_FIELDS = {
 } as const;
 
 const FACET_AGG_SIZE = 20;
+
+const DEFAULT_PAGE_SIZE = 10;
+// Caps `from + size` well under Elasticsearch's default `index.max_result_window` (10 000), so
+// offset pagination stays valid even at the deepest reachable page for this project's corpus.
+const MAX_PAGE_SIZE = 50;
 
 /**
  * Known simplification (flagged per the Phase 3b design doc, not a bug): every facet's bucket
@@ -92,10 +101,18 @@ export async function searchVacancies(filters: VacancySearchFilters): Promise<Va
     ? [{ multi_match: { query: filters.q, fields: ["title", "company", "description"] } }]
     : [];
 
+  const pageSize = Math.min(Math.max(1, Math.trunc(filters.pageSize ?? DEFAULT_PAGE_SIZE)), MAX_PAGE_SIZE);
+  const page = Math.max(1, Math.trunc(filters.page ?? 1));
+  const from = (page - 1) * pageSize;
+
   const result = await esClient.search<CrawlerResultDoc, Record<keyof typeof FACET_FIELDS, AggregationsStringTermsAggregate>>({
     index: CRAWLER_RESULTS_INDEX,
     query: { bool: { filter, must } },
-    size: 200,
+    from,
+    size: pageSize,
+    // Facets aggregate over the whole match set, so report the exact total too — otherwise it
+    // caps at 10 000 and the "Page X of N" control would understate deep result sets.
+    track_total_hits: true,
     aggregations: Object.fromEntries(
       Object.entries(FACET_FIELDS).map(([name, field]) => [
         name,
@@ -116,8 +133,12 @@ export async function searchVacancies(filters: VacancySearchFilters): Promise<Va
     });
   }
 
+  const totalHits = result.hits.total;
+  const total = typeof totalHits === "number" ? totalHits : (totalHits?.value ?? 0);
+
   return {
     hits: result.hits.hits.map((hit) => hit._source!),
+    total,
     facets: {
       specialization: bucketsFor("specialization"),
       seniority: bucketsFor("seniority"),

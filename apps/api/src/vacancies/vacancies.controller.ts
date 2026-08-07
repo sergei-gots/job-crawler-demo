@@ -17,6 +17,14 @@ function toBooleanArray(value: unknown): boolean[] | undefined {
   return strings.map((s) => s === "true");
 }
 
+/** Parses a positive-integer query param (`page`/`pageSize`); ignores absent or malformed values
+ * and lets the search layer apply its defaults and clamps. */
+function toPositiveInt(value: unknown): number | undefined {
+  if (typeof value !== "string") return undefined;
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : undefined;
+}
+
 export async function getSearch(req: Request, res: Response): Promise<void> {
   try {
     const result = await searchAllVacancies({
@@ -26,6 +34,8 @@ export async function getSearch(req: Request, res: Response): Promise<void> {
       isRemote: toBooleanArray(req.query.isRemote),
       location: toStringArray(req.query.location),
       company: toStringArray(req.query.company),
+      page: toPositiveInt(req.query.page),
+      pageSize: toPositiveInt(req.query.pageSize),
     });
     res.status(200).json(result);
   } catch (error) {
