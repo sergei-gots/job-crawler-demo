@@ -1,2 +1,3 @@
 export { useVacancySearch } from "./lib/use-vacancy-search";
-export type { FacetBucket, VacancySearchFacets } from "./lib/vacancy-search-types";
+export { useSuggestions } from "./lib/use-suggestions";
+export type { FacetBucket, VacancySearchFacets, VacancySuggestion } from "./lib/vacancy-search-types";

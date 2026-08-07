@@ -23,10 +23,12 @@ concern)** and **the search experience (an end-user concern)**:
   crawls their own private copy.
 - Search becomes its own page over that shared corpus, with facets + free-text + relevance.
 
-This is a large change, so it's split into two increments sharing this one doc:
+This is a large change, so it's split into increments sharing this one doc:
 - **Phase 3a** — the refactor: crawling moves onto Sources (`CrawlerJob` → `CrawlRun`), no new
   search capability yet.
 - **Phase 3b** — the new Search page with facets, built on the corpus 3a leaves in place.
+- **Phase 3c** — autocomplete (typeahead) suggestions on the Search page's free-text box, helping
+  the user *formulate* a query rather than replacing the results page.
 
 ## Status
 
@@ -34,6 +36,9 @@ This is a large change, so it's split into two increments sharing this one doc:
 `feat/crawl-search-separation-3a`). **Phase 3b (Search page with facets): Implemented, backend
 verified end-to-end (2026-07-31); frontend awaiting the user's manual browser pass per `CLAUDE.md`
 Testing Philosophy — see the Verification checklist below for what's confirmed vs. still open.**
+**Phase 3c (Search autocomplete): Implemented (2026-08-07) — backend unit-tested (Vitest); full
+build/typecheck/lint green on both `apps/api` and `apps/web`; live ES/API verification and the
+frontend manual browser pass are still open — see the Verification checklist below.**
 
 ## Target information architecture
 
@@ -242,6 +247,102 @@ Elasticsearch — no change in Phase 3a. Phase 3b adds fields/mappings (see belo
   list (reuse the exact vacancy card from the Source detail page — same component). Selecting a
   facet or typing re-queries and re-renders both results and facet counts.
 
+## Phase 3c — Search autocomplete (typeahead)
+
+### Overview
+
+Phase 3b's free-text `q` uses `multi_match`, which matches whole analyzed **tokens** — so partial
+input never surfaces anything: typing `Je` finds nothing even though a vacancy at `JetBrains`
+exists in the corpus (confirmed live by the user; same behavior for any other prefix, e.g. a
+partial Cyrillic company name). That's expected full-text-search behavior, not a bug, but it's a
+rough UX edge: the user has to already know the exact word to find it. Phase 3c adds a suggestions
+dropdown on the search box so the user can **discover** the right term as they type, without
+changing how the underlying search itself matches.
+
+### Decisions locked with the user (2026-08-07, before implementation)
+
+- **UX = a suggestions dropdown, not just inline prefix matching on results.** Selecting a
+  suggestion fills the box and runs the **existing** search flow (`setQuery(value)` — no special
+  "suggestion search" path). The dropdown's job is to help the user *formulate* a query; it does
+  not replace or bypass the results page.
+- **Suggestions are distinct `title`/`company` values, not per-vacancy result previews.** Each
+  vacancy is not suggested individually — a prefix match dedupes down to the set of distinct
+  matching titles and companies, each tagged with which field it came from (`"title"` |
+  `"company"`), ordered by how many vacancies carry that value (`doc_count`). Scope is `title` and
+  `company` only — not `description`, `location`, or any facet field. Per-vacancy result
+  suggestions (a `search_as_you_type` / `bool_prefix` style typeahead) were considered and
+  explicitly deferred — see Out of scope.
+- **Case-insensitive matching, original-case display**: typing `je` (any case) surfaces
+  `JetBrains`, displayed as `JetBrains`, not lowercased.
+- **Built on the already-installed `@base-ui/react` `combobox` primitive** (`^1.6.0`, verified
+  present in `node_modules` — no new dependency). It ships native support for server-driven
+  (externally filtered) suggestions via `items` + `filter={null}` (or `filteredItems`) with a
+  controlled `inputValue`/`onInputValueChange` and `value`/`onValueChange`, plus keyboard
+  navigation, Escape-to-close, click-outside dismissal, and floating placement for free — none of
+  which exists anywhere else in `apps/web` today (no prior Combobox/Popover/Dropdown component, no
+  existing keyboard/click-outside handling to reuse). **Verified before implementation** with a
+  throwaway spike route (`app/spike-combobox/`, deleted after use, never committed): it typechecked
+  cleanly against the real installed types using exactly this API shape, and server-rendered with
+  the correct combobox ARIA structure (`role="combobox"`, `aria-autocomplete="list"`) and no runtime
+  errors. No fallback (a hand-rolled `popover` + manual keyboard handling) was needed.
+- **Dedicated `.suggest` sub-fields on `title`/`company`, separate from the Phase 3b `.keyword`
+  sub-fields.** The facet `company.keyword` must stay original-case and exact — it drives the
+  Company facet's filter values and display. Adding a lowercase normalizer directly to it would
+  corrupt the facet (case-sensitive filters/display would silently start matching case-insensitively
+  and vice versa). So autocomplete gets its own `title.suggest`/`company.suggest` keyword sub-fields
+  with a custom lowercase normalizer, leaving the 3b facet fields untouched.
+- **Mapping change ⇒ another schema-version bump.** `title` has no keyword-family sub-field at all
+  today (`.suggest` is new for it too), so a mapping change is required regardless of technique.
+  `CRAWLER_RESULTS_SCHEMA_VERSION` goes `2 → 3`; the Phase 3b versioned-rebuild mechanism handles
+  the rest automatically (delete + recreate empty on mismatch, re-crawl to repopulate) — this phase
+  needed no new reindex logic, just a version bump and two new sub-fields.
+- **New backend surface mirrors the existing `/vacancies/search` module shape**: a
+  `suggestVacancies` query builder in `apps/api/src/search/`, wired through the existing
+  `vacancies.service.ts`/`vacancies.controller.ts`/`vacancies.routes.ts` module rather than a new
+  one, same as Phase 3b's endpoint.
+- **This phase adds the repo's first automated tests (Vitest)** for the new
+  `suggestVacancies` query builder, specifically because it has non-trivial, easy-to-silently-break
+  logic (prefix lowercasing, regex-escaping, dedup, original-case recovery via `top_hits`) that's
+  cheap to unit-test with a mocked `esClient` and expensive to catch only via manual browser
+  testing. This does not change `CLAUDE.md`'s Testing Philosophy for the rest of the app (manual
+  browser testing stays primary) — it's a scoped addition for one piece of pure query-building logic.
+
+### Backend
+
+- **Mapping** (`crawlerResultsIndex.ts`): bump `CRAWLER_RESULTS_SCHEMA_VERSION` to `3`. Add an index
+  **setting** — a custom normalizer, `analysis.normalizer.lowercase_normalizer = { type: "custom",
+  filter: ["lowercase"] }` — passed alongside `mappings` in the same `indices.create` call. Add
+  `title.suggest` (`{ type: "keyword", normalizer: "lowercase_normalizer" }`) and `company.suggest`
+  (same, added alongside the existing `company.keyword`).
+- **Query builder** (new `src/search/suggestVacancies.ts`): `suggestVacancies(prefix): Promise<{
+  value: string; field: "title" | "company" }[]>`. Guards on `< 2` trimmed characters (returns `[]`
+  without querying ES). Lowercases and regex-escapes the prefix, then runs one `size: 0` ES request
+  — age-filtered the same way as `queryVacancies.ts` (reuses `staleCutoffIso`) — with two `terms`
+  aggregations (`title.suggest`, `company.suggest`) using `include: "<escaped-prefix>.*"` and a
+  `top_hits` sub-aggregation (`size: 1`) to recover the original-case value for display. Buckets map
+  to `{ value, field }`, deduped, capped at a small size (~8 total).
+- **Endpoint**: `GET /vacancies/suggest?q=` — `vacancies.controller.ts`'s `getSuggest` →
+  `vacancies.service.ts`'s `suggestAllVacancies` → `suggestVacancies`; routed in
+  `vacancies.routes.ts` (already behind the module's `requireAuth`).
+- **Tests**: `src/search/suggestVacancies.test.ts` (Vitest, `esClient` mocked) covering the
+  min-length guard, the query/aggregation shape, prefix regex-escaping, and bucket→suggestion
+  mapping (dedup + original-case recovery).
+
+### Frontend
+
+- **`shared/ui/combobox.tsx`** — a thin wrapper over `@base-ui/react/combobox`'s parts
+  (`Root`/`Input`/`Positioner`/`Popup`/`List`/`Item`/`Empty`), styled with `cn()` + `data-slot`, the
+  same convention as `shared/ui/checkbox.tsx`. Suggestions are server-driven, so internal filtering
+  is disabled (`filter={null}`/`filteredItems`) and `inputValue` is controlled.
+- **`features/search-vacancies/`**: `api/suggest-vacancies.ts` calling `GET /vacancies/suggest`
+  (reusing the `getJson` + `AbortSignal` support added in the Phase 3b code-review pass);
+  `lib/use-suggestions.ts` mirroring `use-vacancy-search.ts`'s debounce + `AbortController` pattern
+  (shorter debounce, ~150ms, plus the same `< 2` char gate as the backend).
+- **`widgets/search/ui/search-page.tsx`**: the plain `<Input>` free-text box becomes the combobox,
+  bound to the same `query`/`setQuery` state `useVacancySearch` already owns. Selecting a suggestion
+  calls `setQuery(value)`; the existing search effect re-queries as normal. Facets, pagination, and
+  results rendering are unchanged.
+
 ## Out of scope (all increments)
 
 - Saved searches (persisted per user) — explicitly out of MVP per `CLAUDE.md`.
@@ -250,6 +351,11 @@ Elasticsearch — no change in Phase 3a. Phase 3b adds fields/mappings (see belo
 - Splitting `skillsSummary` into a normalized skill array; semantic/fuzzy keyword↔skill matching —
   both are AI Enrichment.
 - Puppeteer sources (RemoteOK etc.) — still post-MVP.
+- **(Phase 3c)** Per-vacancy result suggestions (`search_as_you_type`/`bool_prefix`-style
+  typeahead) — deferred in favor of the simpler distinct-title/company suggestion list.
+- **(Phase 3c)** Fuzzy/typo-tolerant suggestions and any ranking beyond raw `doc_count`.
+- **(Phase 3c)** Autocomplete on `description`, `location`, or any facet field.
+- **(Phase 3c)** Recent-search history.
 
 ## Verification
 
@@ -280,3 +386,25 @@ Elasticsearch — no change in Phase 3a. Phase 3b adds fields/mappings (see belo
       user's manual pass per `CLAUDE.md` Testing Philosophy, not automated by Claude.**
 - [ ] Two-column Search page layout, checkbox facet groups with bucket counts, and the shared
       `VacancyCard` rendering correctly — same manual browser pass.
+
+**Phase 3c**:
+- [x] `npm run test` (apps/api) — `suggestVacancies` unit tests pass (6/6, covering the min-length
+      guard, query/aggregation shape, prefix regex-escaping, and dedup/original-case mapping).
+      Also confirmed: the combobox API approach was verified before implementation via a throwaway
+      spike route (typechecked against the real installed `@base-ui/react` types, server-rendered
+      with the correct combobox ARIA structure, no runtime errors) — see the Decisions section
+      above; `apps/api`'s `typecheck`/`lint` and `apps/web`'s `typecheck`/`lint`/production `build`
+      all pass with the full Phase 3c implementation in place.
+- [ ] After the schema bump, the API log shows the version-mismatch rebuild (`schema version 2 !=
+      3; rebuilding index`) on first touch, then `ready at schema version 3`; a re-crawl repopulates
+      `title.suggest`/`company.suggest`. **Not yet verified against a live ES/API instance — needs
+      the user's environment.**
+- [ ] `GET /vacancies/suggest?q=Je` returns `JetBrains` tagged `field: "company"`; `q=je`
+      (lowercase) returns the same result (case-insensitive); `q=J` (1 char) returns `[]`.
+      **Not yet verified live — same as above.**
+- [ ] Browser: typing in the Search page's free-text box shows a dropdown of distinct
+      title/company suggestions; arrow keys move the highlight, Enter/click selects, Escape and
+      click-outside close the dropdown; selecting a suggestion fills the box and re-runs the
+      search. **Not yet verified — manual browser pass per `CLAUDE.md` Testing Philosophy.**
+- [ ] Regression: the Company facet still shows original-case values and filters correctly
+      (confirms `.suggest` didn't disturb `.keyword`); pagination from Phase 3b is unaffected.

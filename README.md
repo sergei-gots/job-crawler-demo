@@ -120,17 +120,38 @@ See `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`'s Phase 3b section.
   aggregatable (for facets) as well as full-text-searchable (for `q`). As with the 2.2 fields,
   existing documents only pick these up once they're re-crawled — not retroactively.
 - New endpoint: `GET /vacancies/search` (global, not per-source) — query params `q` (free text
-  over title/company/description, OR semantics) plus repeatable facet params `specialization`,
-  `seniority`, `isRemote`, `location`, `company`. Returns `{ hits, facets }`, where `facets` is
-  `terms`-aggregation bucket counts per facet field for the current filtered set. *Known
-  simplification*: every facet's counts include its own active selection (no `post_filter`), so
-  they show "how many results this selection already has," not "how many more if I add this
-  option" — flagged as deliberate, not a bug.
+  over title/company/description, OR semantics), repeatable facet params `specialization`,
+  `seniority`, `isRemote`, `location`, `company`, and `page`/`pageSize` (server-side pagination,
+  default page size 10, capped at 50). Returns `{ hits, total, facets }`, where `total` is the
+  exact match count across all pages and `facets` is `terms`-aggregation bucket counts per facet
+  field for the current filtered set. *Known simplification*: every facet's counts include its own
+  active selection (no `post_filter`), so they show "how many results this selection already has,"
+  not "how many more if I add this option" — flagged as deliberate, not a bug.
 - New Search page (`/search`) — free-text input, a facet panel (Specialization / Seniority level /
   Remote / On-site, each a checkbox group with bucket counts), and a results list reusing the same
   `VacancyCard` component as the Source detail page (`entities/vacancy/ui/`). This is the app's
   first two-column page layout — a deliberate, scoped exception to the single-column convention
   documented in `CLAUDE.md`'s UI Design Guidelines.
+
+### Search autocomplete — Increment 3c
+
+See `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`'s Phase 3c section.
+
+- The Search page's free-text box now shows a suggestions dropdown as you type: distinct, deduped
+  `title`/`company` values matching a case-insensitive prefix (e.g. typing `Je` surfaces
+  `JetBrains`, shown in its original case), each tagged with which field it came from. Selecting a
+  suggestion fills the box and runs the normal search — it's an aid for formulating a query, not a
+  replacement for the results page or a per-vacancy result preview.
+- New endpoint: `GET /vacancies/suggest?q=` — returns `{ suggestions: [{ value, field }] }`; `field`
+  is `"title"` or `"company"`. Requires at least 2 characters; matches via prefix `terms`
+  aggregations on new `title.suggest`/`company.suggest` keyword sub-fields (a lowercase normalizer,
+  separate from the Increment 3b facet `.keyword` sub-fields, which must stay original-case).
+- Built on the already-installed `@base-ui/react` `combobox` primitive (`shared/ui/combobox.tsx`) —
+  no new frontend dependency.
+- Backend: this increment adds the repo's first automated tests (Vitest,
+  `apps/api/src/search/suggestVacancies.test.ts`) for the new suggestion query builder — `npm run
+  test` in `apps/api`. Manual browser testing per `CLAUDE.md`'s Testing Philosophy remains the
+  primary method everywhere else.
 
 ### Not yet implemented
 
@@ -242,6 +263,14 @@ A global, keyword+facet search across every source's vacancies:
 
 ```bash
 curl -s "http://localhost:4000/vacancies/search?q=python&isRemote=true&seniority=Middle" \
+  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
+```
+
+Autocomplete suggestions for the search box (distinct `title`/`company` values, case-insensitive
+prefix match):
+
+```bash
+curl -s "http://localhost:4000/vacancies/suggest?q=Je" \
   -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
 ```
 

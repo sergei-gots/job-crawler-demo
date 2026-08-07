@@ -2,13 +2,26 @@
 
 import { useState } from "react";
 import { VacancyCard, vacancyKey } from "@/entities/vacancy";
-import { useVacancySearch } from "@/features/search-vacancies";
+import { useSuggestions, useVacancySearch, type VacancySuggestion } from "@/features/search-vacancies";
 import { useRequireAuth } from "@/entities/session";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
-import { Input } from "@/shared/ui/input";
+import {
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxPopup,
+  ComboboxPositioner,
+  ComboboxPortal,
+  ComboboxRoot,
+} from "@/shared/ui/combobox";
 import { PageTitle } from "@/shared/ui/page-title";
 import { FacetGroup } from "./facet-group";
+
+function suggestionLabel(item: VacancySuggestion): string {
+  return item.value;
+}
 
 function remoteLabel(value: string): string {
   return value === "true" ? "Remote" : "On-site";
@@ -38,6 +51,7 @@ export function SearchPage() {
     loading,
     error,
   } = useVacancySearch({ token, handleUnauthorized });
+  const { suggestions } = useSuggestions(query, { token, handleUnauthorized });
   const [expandedRawVacancyIds, setExpandedRawVacancyIds] = useState<Set<string>>(new Set());
 
   function toggleRawVacancy(key: string) {
@@ -59,11 +73,34 @@ export function SearchPage() {
       <div className="flex w-full max-w-6xl flex-col gap-6">
         <PageTitle>Search</PageTitle>
         {error && <p className="text-sm text-destructive">{error}</p>}
-        <Input
-          placeholder="Search title, company, description..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+        <ComboboxRoot<VacancySuggestion>
+          items={suggestions}
+          filter={null}
+          inputValue={query}
+          onInputValueChange={(value) => setQuery(value)}
+          onValueChange={(item) => {
+            if (item) setQuery(item.value);
+          }}
+          itemToStringLabel={suggestionLabel}
+          autoComplete="none"
+        >
+          <ComboboxInput placeholder="Search title, company, description..." />
+          <ComboboxPortal>
+            <ComboboxPositioner>
+              <ComboboxPopup>
+                <ComboboxEmpty>No suggestions.</ComboboxEmpty>
+                <ComboboxList>
+                  {(item: VacancySuggestion) => (
+                    <ComboboxItem key={`${item.field}:${item.value}`} value={item}>
+                      <span className="truncate">{item.value}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">{item.field}</span>
+                    </ComboboxItem>
+                  )}
+                </ComboboxList>
+              </ComboboxPopup>
+            </ComboboxPositioner>
+          </ComboboxPortal>
+        </ComboboxRoot>
         <div className="flex flex-col gap-6 md:flex-row">
           <Card size="sm" className="h-fit w-full shrink-0 md:w-56">
             <CardHeader>

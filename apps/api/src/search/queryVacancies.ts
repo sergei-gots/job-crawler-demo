@@ -6,7 +6,9 @@ function maxVacancyAgeDays(): number {
   return Number(process.env.MAX_VACANCY_AGE_DAYS ?? 14);
 }
 
-function staleCutoffIso(): string {
+/** Age cutoff shared with `suggestVacancies` — both only consider vacancies still within the
+ * staleness window. */
+export function staleCutoffIso(): string {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - maxVacancyAgeDays());
   return cutoff.toISOString();

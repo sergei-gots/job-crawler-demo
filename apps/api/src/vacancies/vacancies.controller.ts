@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { handleError } from "../utils/errors.js";
-import { searchAllVacancies } from "./vacancies.service.js";
+import { searchAllVacancies, suggestAllVacancies } from "./vacancies.service.js";
 
 /** Normalizes an Express query param that may be absent, a single value, or repeated
  * (`?specialization=A&specialization=B`) into a plain string array. */
@@ -38,6 +38,15 @@ export async function getSearch(req: Request, res: Response): Promise<void> {
       pageSize: toPositiveInt(req.query.pageSize),
     });
     res.status(200).json(result);
+  } catch (error) {
+    handleError(res, error, "vacancies");
+  }
+}
+
+export async function getSuggest(req: Request, res: Response): Promise<void> {
+  try {
+    const suggestions = await suggestAllVacancies(typeof req.query.q === "string" ? req.query.q : "");
+    res.status(200).json({ suggestions });
   } catch (error) {
     handleError(res, error, "vacancies");
   }

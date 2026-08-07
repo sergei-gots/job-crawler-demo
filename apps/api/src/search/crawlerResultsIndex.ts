@@ -10,9 +10,11 @@ export const CRAWLER_RESULTS_INDEX = "crawler_results";
  * against this and rebuilds the index on a mismatch — see that function's doc comment.
  *
  * History: v1 = original mapping; v2 = added `company.keyword`/`location.keyword` sub-fields and
- * the `specialization`/`seniority` keyword fields (Increment 3b faceted search).
+ * the `specialization`/`seniority` keyword fields (Increment 3b faceted search); v3 = added
+ * `title.suggest`/`company.suggest` (lowercase-normalized keyword sub-fields) for the Increment 3c
+ * autocomplete suggestions endpoint.
  */
-export const CRAWLER_RESULTS_SCHEMA_VERSION = 2;
+export const CRAWLER_RESULTS_SCHEMA_VERSION = 3;
 
 export interface CrawlerResultDoc {
   sourceId: number;
@@ -33,14 +35,40 @@ export interface CrawlerResultDoc {
 
 let indexEnsured = false;
 
+// A lowercase-only normalizer (no tokenization) for the `.suggest` sub-fields below — lets
+// autocomplete prefix-match case-insensitively while still aggregating on whole, exact values
+// (unlike a `text` analyzer, which would tokenize "Job Crawler" into separate "job"/"crawler"
+// terms and break whole-value prefix suggestions).
+const CRAWLER_RESULTS_SETTINGS = {
+  analysis: {
+    normalizer: {
+      lowercase_normalizer: { type: "custom" as const, filter: ["lowercase"] },
+    },
+  },
+};
+
 // `location`/`company` carry a `.keyword` sub-field so they stay full-text-searchable (the base
 // `text` field, used by `multi_match`) while also being aggregatable for facets (the `keyword`
 // sub-field, used by `terms` aggregations) — a plain `text` field can't be aggregated directly.
+// `title`/`company` additionally carry a `.suggest` sub-field (Increment 3c) — a *separate*
+// keyword sub-field from `.keyword`, normalized lowercase for case-insensitive autocomplete
+// prefix matching. It's kept apart from `company.keyword` deliberately: that field drives the
+// Company facet's exact filter/display and must stay original-case, so lowercasing it in place
+// would corrupt the facet.
 const CRAWLER_RESULTS_PROPERTIES = {
   sourceId: { type: "integer" as const },
   externalId: { type: "keyword" as const },
-  title: { type: "text" as const },
-  company: { type: "text" as const, fields: { keyword: { type: "keyword" as const } } },
+  title: {
+    type: "text" as const,
+    fields: { suggest: { type: "keyword" as const, normalizer: "lowercase_normalizer" } },
+  },
+  company: {
+    type: "text" as const,
+    fields: {
+      keyword: { type: "keyword" as const },
+      suggest: { type: "keyword" as const, normalizer: "lowercase_normalizer" },
+    },
+  },
   url: { type: "keyword" as const },
   postedAt: { type: "date" as const },
   firstSeenAt: { type: "date" as const },
@@ -56,6 +84,7 @@ const CRAWLER_RESULTS_PROPERTIES = {
 async function createCrawlerResultsIndex(): Promise<void> {
   await esClient.indices.create({
     index: CRAWLER_RESULTS_INDEX,
+    settings: CRAWLER_RESULTS_SETTINGS,
     mappings: {
       _meta: { schemaVersion: CRAWLER_RESULTS_SCHEMA_VERSION },
       properties: CRAWLER_RESULTS_PROPERTIES,

@@ -11,6 +11,11 @@ export interface VacancySearchFacets {
   company: FacetBucket[];
 }
 
+export interface VacancySuggestion {
+  value: string;
+  field: "title" | "company";
+}
+
 export interface VacancySearchFilters {
   q?: string;
   specialization?: string[];

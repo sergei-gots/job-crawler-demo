@@ -1,9 +1,9 @@
 # ARCHITECTURE.md — Job-Crawler-Demo
 
 > High-level architecture and data models. For scope, standards and stack see `CLAUDE.md`.
-> This file describes the **current/target** state of the system as of Increment 3b (Separate
-> Crawling from Search, faceted search) — for how earlier increments got here, and decisions that
-> were locked along the way, see `.claude/features/`.
+> This file describes the **current/target** state of the system as of Increment 3c (Separate
+> Crawling from Search, faceted search, search autocomplete) — for how earlier increments got
+> here, and decisions that were locked along the way, see `.claude/features/`.
 
 ## Component overview
 
@@ -57,8 +57,10 @@
    Claude API) for summary/skill-extraction/categorization before/alongside indexing.
 6. Users search the shared corpus via a **Coveo-like layer** (`GET /vacancies/search` — free text
    over title/company/description plus facets: Specialization, Seniority level, Remote/On-site,
-   Location, Company, each with `terms`-aggregation bucket counts) over Elasticsearch — not scoped
-   to any run or user.
+   Location, Company, each with `terms`-aggregation bucket counts, and server-side `page`/`pageSize`
+   pagination) over Elasticsearch — not scoped to any run or user. The search box also offers
+   autocomplete: `GET /vacancies/suggest` (Increment 3c) returns distinct `title`/`company` values
+   matching a case-insensitive prefix, to help formulate a query rather than replace the results.
 7. The run finishes → `CrawlRun.status` → `COMPLETED` (or `FAILED`/`STOPPED`).
 
 ## Storage responsibilities
@@ -119,8 +121,8 @@ status-conditioned write plus an in-process cancellation map, the same pattern t
 |----------------|---------------|--------------------------------------------------------|
 | sourceId       | int           |                                                         |
 | externalId     | keyword       | source's own vacancy id; `_id` = `sourceId:externalId` |
-| title          | text          |                                                         |
-| company        | text          |                                                         |
+| title          | text          | also has a `.suggest` sub-field (Increment 3c, lowercase-normalized keyword) for autocomplete prefix matching |
+| company        | text          | also has `.keyword` (Increment 3b, facet aggregation, original-case) and `.suggest` (Increment 3c, lowercase-normalized, autocomplete) sub-fields |
 | url            | keyword       | original posting URL                                   |
 | postedAt       | date \| null  | as reported by the source                              |
 | firstSeenAt    | date          | set once, on first upsert                              |
@@ -132,7 +134,10 @@ status-conditioned write plus an in-process cancellation map, the same pattern t
 | specialization | keyword \| null | Increment 3b — parsed from the same lead-sentence template as `skillsSummary` |
 | seniority      | keyword \| null | Increment 3b — parsed from the same lead-sentence template as `skillsSummary` |
 
-`company` also gained a `.keyword` sub-field (Increment 3b), same reasoning as `location`. No
+`title.suggest`/`company.suggest` are deliberately separate from `company.keyword`: the facet field
+must stay original-case and exact (it drives the Company facet's filter/display), while the
+autocomplete sub-fields use a custom `lowercase_normalizer` for case-insensitive prefix matching —
+mixing the two into one sub-field would corrupt the facet. No
 `salary` field — deliberately not collected; see `02b_FEATURE_VACANCY_DETAIL_CRAWL.md`'s spike
 findings (habr almost never discloses it, and the only visible number is a market estimate, not
 the employer's own figure). No `userId`/`jobId` — the corpus is shared, not scoped to a run or
@@ -163,5 +168,13 @@ they'll be added as part of the increment that actually builds `AIEnricher`.
 - **`searchVacancies`** (Coveo-like, Increment 3b — `apps/api/src/search/queryVacancies.ts`) —
   `searchVacancies(filters): Promise<VacancySearchResult>` wrapping Elasticsearch: free-text
   `multi_match` over title/company/description + `terms` facet filters + `terms` aggregations for
-  facet counts. No relevance-sort control yet (ES's default `_score` ordering only); hides ES
-  query DSL from the `vacancies` module's controller/service.
+  facet counts, plus `page`/`pageSize` → ES `from`/`size` with `track_total_hits: true`, returning
+  the exact `total` alongside `hits`/`facets`. No relevance-sort control yet (ES's default `_score`
+  ordering only); hides ES query DSL from the `vacancies` module's controller/service.
+- **`suggestVacancies`** (Increment 3c — `apps/api/src/search/suggestVacancies.ts`) —
+  `suggestVacancies(prefix): Promise<VacancySuggestion[]>`, backing `GET /vacancies/suggest`.
+  Prefix `terms` aggregations (min. 2 characters) on `title.suggest`/`company.suggest`, each with a
+  `top_hits` sub-aggregation to recover the original-case display value; results are deduped and
+  tagged `field: "title" | "company"`. Deliberately not `queryVacancies.ts` — kept as its own module
+  since it's a distinct query shape (aggregation-only, no hits), though both live in `search/` and
+  are wired through the same `vacancies` controller/service module.
