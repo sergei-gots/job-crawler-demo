@@ -39,7 +39,7 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [vacancies, setVacancies] = useState<Vacancy[] | null>(null);
   const [vacanciesPage, setVacanciesPage] = useState(1);
-  const [showLogs, setShowLogs] = useState(false);
+  const [showLogs, setShowLogs] = useState(true);
   const [clearDataPending, setClearDataPending] = useState(false);
   const [expandedRawVacancyIds, setExpandedRawVacancyIds] = useState<Set<string>>(new Set());
 

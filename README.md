@@ -153,10 +153,31 @@ See `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`'s Phase 3c section.
   test` in `apps/api`. Manual browser testing per `CLAUDE.md`'s Testing Philosophy remains the
   primary method everywhere else.
 
+### Puppeteer RemoteOK crawl strategy — Increment 4
+
+See `.claude/features/04_FEATURE_PUPPETEER_REMOTEOK.md`.
+
+- RemoteOK (`remoteok.com`) now has a real `CrawlStrategy` (`remoteOkStrategy.ts`), using Puppeteer
+  to get past a Cloudflare bot check that 403s plain non-browser requests — confirmed via a spike,
+  not assumed. Presents a realistic desktop Chrome UA rather than any bot-identifying string.
+- Listing-only crawl, no detail-page pass: RemoteOK's `/remote-dev-jobs` listing embeds a full
+  schema.org `JobPosting` JSON-LD block per job row (description, etc.) plus reliable `data-*`
+  attributes (id, company, posted date) directly in the DOM, so a detail-page fetch would just
+  re-request the same information. `enrichDetails` is simply omitted.
+- `baseSalary` and location fields in that JSON-LD are not stored — a spike found the exact same
+  value on every sampled row (boilerplate schema.org filler for search-engine indexing, not a real
+  per-employer figure), the same reasoning already applied to habr_career's dropped salary field.
+- Skill tags come from the listing's tag chips, deduped (each renders twice in the DOM for
+  responsive layout) and joined into the existing `skillsSummary` string field.
+- The habr_career strategy file was renamed `axiosCheerioStrategy.ts` → `habrCareerStrategy.ts` as
+  part of this increment — strategy files are now named after the site they crawl, not the
+  fetch/parse library, since dispatch (`getStrategy`) is already 1:1 by source name and the library
+  is an implementation detail internal to each file.
+
 ### Not yet implemented
 
 - AI enrichment
-- Additional source parsers (RemoteOK, WeWorkRemotely, Craigslist)
+- Additional source parsers (WeWorkRemotely, Craigslist)
 
 Track progress against the MVP plan in `CLAUDE.md` → User Stories.
 

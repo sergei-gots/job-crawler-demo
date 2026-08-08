@@ -2,6 +2,7 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import type { CrawlSource } from "@prisma/client";
 import { getOrFetch } from "../pageCache.js";
+import { htmlToText } from "../htmlToText.js";
 import { waitForSlot } from "../rateLimiter.js";
 import { upsertVacancy } from "../../search/upsertVacancy.js";
 import type { CrawlResult, CrawlStrategy, EnrichDetailsResult, LogProgress, RawVacancy } from "../types.js";
@@ -98,14 +99,14 @@ function parseHabrVacancyDetail(html: string): Partial<RawVacancy> {
   if (!jobPosting) throw new Error("no JobPosting JSON-LD block found on vacancy detail page");
 
   const descriptionHtml = jobPosting.description ?? "";
-  // <br> is a void element (no closing tag), so it needs its own pattern separate from the
-  // other block tags below; without this, cheerio's .text() would run adjacent lines together.
+  const description = htmlToText(descriptionHtml);
+
+  // Re-parsed separately from `description` (which is flattened to plain text) because the
+  // labeled-clause extraction below needs to find the lead <p> specifically, not just any text.
   const withBreaks = descriptionHtml
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(p|li|div|h[1-6])>/gi, "\n");
   const $description = cheerio.load(withBreaks);
-  const description = $description.text().replace(/\n{3,}/g, "\n\n").trim() || null;
-
   const leadParagraph = $description("p").first().text().trim();
   const skillsSummary = leadParagraph.startsWith("Навыки") ? leadParagraph : null;
   const seniority = skillsSummary ? extractLabeledClause(skillsSummary, "Квалификация") : null;
@@ -127,8 +128,12 @@ function parseHabrVacancyDetail(html: string): Partial<RawVacancy> {
  * Handles habr_career's vacancy listing, confirmed server-rendered (no JS execution needed) via
  * a manual curl check — CrawlSource.type is seeded as STATIC accordingly. Selectors are specific
  * to habr_career's markup, not a generic HTML scraper.
+ *
+ * Named after the site, not the library (axios+cheerio) — a CrawlStrategy is 1:1 with a source
+ * (dispatch in crawler/index.ts is by source.name), and the technology used to fetch/parse it is
+ * an implementation detail. See remoteOkStrategy.ts for the Puppeteer-based counterpart.
  */
-export const axiosCheerioStrategy: CrawlStrategy = {
+export const habrCareerStrategy: CrawlStrategy = {
   async crawl(source: CrawlSource): Promise<CrawlResult> {
     const vacancies: RawVacancy[] = [];
     const pageLogs: string[] = [];

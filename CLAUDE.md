@@ -46,7 +46,7 @@ Given a 2-week timeline, MVP scope is **one source, done well**, rather than thr
 | Key              | Site                     | Status   | Type (`CrawlSource.type`)                                     | Notes                                                        |
 | ---------------- | ------------------------ | -------- | -------------------------------------------------------------- | ------------------------------------------------------------- |
 | `habr_career`    | career.habr.com          | MVP      | `STATIC` — confirmed fully server-rendered (both the listing and, per Increment 2.2, the vacancy detail pages); crawled with Axios+Cheerio, no Puppeteer needed | RU tech jobs; good fit for AI skill-extraction demo |
-| `remoteok`       | remoteok.com             | post-MVP | `DYNAMIC` — `robots.txt` looks permissive (`Crawl-delay: 1`), but the site actively returns `403` on a plain non-browser request (Cloudflare bot check); a real browser/Puppeteer is needed to get past the wall, not just to render JS | Tech jobs with ready-made skill tags — good AI skill-extraction fit; replaces `moikrug` |
+| `remoteok`       | remoteok.com             | Increment 4 | `DYNAMIC` — confirmed the site returns `403` on a plain non-browser request (Cloudflare bot check); crawled with Puppeteer (a real desktop-Chrome UA, not a bot-identifying string) to get past the wall | Tech jobs with ready-made skill tags; listing page alone carries everything needed (description, tags) via per-row JSON-LD, so no detail-page crawl. `baseSalary`/location in that JSON-LD are boilerplate placeholders (identical across every row), not real per-employer data — not stored, same reasoning as habr's dropped salary field; replaces `moikrug` |
 | `weworkremotely` | weworkremotely.com       | post-MVP | `STATIC` — `robots.txt` is `Allow: /` aside from account/admin paths; listings confirmed server-rendered on a manual check | Simple, long-established scraper-friendly job board |
 | `craigslist`     | craigslist.org (SW jobs) | post-MVP | `STATIC` — listings are server-rendered and accessible without login on a single request, but craigslist has a documented history of legal/technical enforcement against scrapers (e.g. the 3taps/PadMapper case); expect rate-limiting or CAPTCHA under sustained automated access even though a one-off check looks simple | International example, multiple cities |
 
@@ -54,17 +54,23 @@ Given a 2-week timeline, MVP scope is **one source, done well**, rather than thr
 `robots.txt` and the site itself) to `career.habr.com`; Habr absorbed it. Replaced by `remoteok`
 and `weworkremotely` above.
 
-`remoteok`, `weworkremotely`, and `craigslist` are deferred — add them later as additional
-`CrawlStrategy` adapters if time allows, without changing the crawler architecture.
+`weworkremotely` and `craigslist` are deferred — add them later as additional `CrawlStrategy`
+adapters if time allows, without changing the crawler architecture.
 
 All four are already seeded as `CrawlSource` rows (`apps/api/prisma/seed.ts`) so they're
-selectable on the Sources page. Only `habr_career` has a real `CrawlStrategy` (Axios+Cheerio,
-listing crawl plus per-vacancy detail crawl — see the "Real crawler..." and "Vacancy detail
-crawl..." features in `.claude/features/`); the other three don't have a parser yet, so
-triggering a crawl for them (or using "crawl all") logs a `WARN` and skips them rather than
-failing the run. Crawling is triggered directly per source via `POST /sources/:id/crawl` — see
-`.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md` — there is no separate job entity that
-picks which sources to run.
+selectable on the Sources page. `habr_career` and `remoteok` have real `CrawlStrategy`
+implementations (`habrCareerStrategy.ts` — Axios+Cheerio, listing crawl plus per-vacancy detail
+crawl; `remoteOkStrategy.ts` — Puppeteer, listing crawl only — see the "Real crawler...", "Vacancy
+detail crawl...", and "Puppeteer RemoteOK..." features in `.claude/features/`); `weworkremotely`
+and `craigslist` don't have a parser yet, so triggering a crawl for them (or using "crawl all")
+logs a `WARN` and skips them rather than failing the run. Strategy files are named after the site
+they crawl (`<siteKeyCamelCase>Strategy.ts`), not the library used to fetch/parse it — the
+fetch/parse technology (Axios+Cheerio vs. Puppeteer) is an implementation detail internal to each
+file. Dispatch (`getStrategy` in `apps/api/src/crawler/index.ts`) is by `CrawlSource.name`, not by
+`CrawlSource.type` — `type` only signals "needs a browser or not," it doesn't imply every source
+of the same type can share one strategy's selectors/navigation. Crawling is triggered directly per
+source via `POST /sources/:id/crawl` — see `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`
+— there is no separate job entity that picks which sources to run.
 
 For each source we define: `type` (`STATIC`/`DYNAMIC` — determines Axios+Cheerio vs Puppeteer),
 `defaultDelayMs`, base URL, and (eventually) the CSS selectors/fields to parse. This all lives on
