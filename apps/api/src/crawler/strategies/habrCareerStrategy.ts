@@ -15,7 +15,7 @@ const USER_AGENT =
 // existing retry/error handling. 20s is comfortably above habr_career's normal response time.
 const REQUEST_TIMEOUT_MS = 20_000;
 
-function parseHabrCareerPage(html: string, source: CrawlSource): RawVacancy[] {
+export function parseHabrCareerPage(html: string, source: CrawlSource): RawVacancy[] {
   const $ = cheerio.load(html);
   const vacancies: RawVacancy[] = [];
 
@@ -93,7 +93,7 @@ function extractLabeledClause(skillsSummary: string, label: string): string | nu
  * (e.g. no `jobLocation`) is real, current information from the source and is fine to return as
  * `null` - the two cases are deliberately not conflated.
  */
-function parseHabrVacancyDetail(html: string): Partial<RawVacancy> {
+export function parseHabrVacancyDetail(html: string): Partial<RawVacancy> {
   const $ = cheerio.load(html);
   const jobPosting = findJobPosting($);
   if (!jobPosting) throw new Error("no JobPosting JSON-LD block found on vacancy detail page");

@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<body>
+  <table>
+    <!-- Clean row: well-formed JSON-LD, no duplicate tags. -->
+    <tr class="job" data-id="111" data-href="/remote-jobs/foo-111" data-company="Acme Remote" data-epoch="1700000000">
+      <td><h2>Senior Backend Engineer</h2></td>
+      <td class="tags">
+        <span class="tag">React</span>
+        <span class="tag">Node</span>
+      </td>
+      <script type="application/ld+json">
+        {"@context":"http://schema.org","@type":"JobPosting","description":"<p>Great backend role.</p>"}
+      </script>
+    </tr>
+
+    <!-- Malformed JSON-LD (unterminated string) - must fall back to description: null, not throw. -->
+    <tr class="job" data-id="222" data-href="/remote-jobs/bar-222" data-company="Beta Inc" data-epoch="1700003600">
+      <td><h2>Data Engineer</h2></td>
+      <td class="tags">
+        <span class="tag">Python</span>
+      </td>
+      <script type="application/ld+json">
+        {"@context":"http://schema.org","@type":"JobPosting","description":"unterminated
+      </script>
+    </tr>
+
+    <!-- Tags duplicated (desktop + mobile layout variants) - must be deduped. No JSON-LD block at all. -->
+    <tr class="job" data-id="333" data-href="/remote-jobs/baz-333" data-company="Gamma Ltd" data-epoch="1700007200">
+      <td><h2>Fullstack Developer</h2></td>
+      <td class="tags">
+        <span class="tag">React</span>
+        <span class="tag">Vue</span>
+        <span class="tag">React</span>
+        <span class="tag">Vue</span>
+      </td>
+    </tr>
+
+    <!-- Missing data-id entirely - must be skipped. -->
+    <tr class="job" data-href="/remote-jobs/no-id-444" data-company="Delta Co" data-epoch="1700010800">
+      <td><h2>Should Be Skipped</h2></td>
+      <td class="tags"></td>
+    </tr>
+  </table>
+</body>
+</html>

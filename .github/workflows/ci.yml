@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  api:
+    name: apps/api (lint, typecheck, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # npm workspaces hoist node_modules to the repo root, so install from there rather than
+      # from apps/api directly.
+      - run: npm ci
+
+      # Prisma client types (used by the crawler's RawVacancy/CrawlSource types) must exist before
+      # typecheck/test can run. Generation only reads schema.prisma - it doesn't need a live
+      # database, so no Postgres service is needed here.
+      - run: npm run prisma:generate --workspace apps/api
+
+      - run: npm run lint --workspace apps/api
+      - run: npm run typecheck --workspace apps/api
+      - run: npm run test --workspace apps/api

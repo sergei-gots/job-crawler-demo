@@ -151,7 +151,8 @@ See `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`'s Phase 3c section.
 - Backend: this increment adds the repo's first automated tests (Vitest,
   `apps/api/src/search/suggestVacancies.test.ts`) for the new suggestion query builder — `npm run
   test` in `apps/api`. Manual browser testing per `CLAUDE.md`'s Testing Philosophy remains the
-  primary method everywhere else.
+  primary method everywhere else. (The suite was substantially expanded in Increment 5 — see
+  below.)
 
 ### Puppeteer RemoteOK crawl strategy — Increment 4
 
@@ -173,6 +174,23 @@ See `.claude/features/04_FEATURE_PUPPETEER_REMOTEOK.md`.
   part of this increment — strategy files are now named after the site they crawl, not the
   fetch/parse library, since dispatch (`getStrategy`) is already 1:1 by source name and the library
   is an implementation detail internal to each file.
+
+### Automated regression tests + CI — Increment 5
+
+- Expanded the test suite (Vitest) beyond `suggestVacancies.test.ts` to cover the crawler's most
+  fragile part — site-markup-dependent parsing — against hand-built HTML fixtures
+  (`apps/api/src/crawler/strategies/__fixtures__/`), not the live sites: `habrCareerStrategy.ts`'s
+  listing/detail parsers, `remoteOkStrategy.ts`'s listing parser (including its malformed-JSON-LD
+  fallback and tag-dedup behavior), `htmlToText.ts`, `getStrategy()`'s dispatch map, and
+  `upsertVacancy.ts`'s undefined-vs-null field-merge semantics. `parseHabrCareerPage`/
+  `parseHabrVacancyDetail`/`parseListingPage` were exported (previously module-private) so tests
+  can call them directly instead of mocking `axios`/`puppeteer` just to reach pure parsing logic.
+- New `.github/workflows/ci.yml`: runs lint, typecheck, and the full test suite for `apps/api` on
+  every push to `main` and every pull request — a test suite nobody runs automatically isn't
+  regression protection, so this is what actually makes the new tests enforce anything.
+- Explicitly out of scope for this increment: testing `crawlRunner.ts`'s orchestration (status
+  transitions, cancellation, `CrawlLog` writes) — real value, but needs Prisma+Redis+strategy
+  mocking, a bigger lift than this pass; and any live-network/live-Puppeteer test.
 
 ### Not yet implemented
 
