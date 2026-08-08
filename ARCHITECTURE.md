@@ -158,10 +158,14 @@ they'll be added as part of the increment that actually builds `AIEnricher`.
 - **`CrawlStrategy`** (`apps/api/src/crawler/types.ts`) — `crawl(source): Promise<CrawlResult>`
   plus an optional `enrichDetails(source, vacancies, isCancelled, logProgress):
   Promise<EnrichDetailsResult>` for sources that support a second, per-vacancy detail-page pass.
-  Chosen per source via `getStrategy(source)` (dispatches on `CrawlSource.type`/`name`) — not
-  configurable per run. Current implementation: `AxiosCheerioStrategy` (habr_career only).
-  `PuppeteerStrategy` doesn't exist yet — no seeded source has needed it so far (`habr_career`'s
-  listing turned out to be server-rendered despite being seeded as `DYNAMIC`).
+  Chosen per source via `getStrategy(source)` (dispatches on `CrawlSource.name`, not `.type` —
+  `type` only signals "needs a browser or not," not which specific strategy to use) — not
+  configurable per run. Strategy files are named after the site they crawl, not the fetch/parse
+  library, since a strategy is 1:1 with a source and the library is an implementation detail:
+  `habrCareerStrategy.ts` (Axios+Cheerio; `habr_career`'s listing turned out to be server-rendered
+  despite being seeded as `DYNAMIC`) and `remoteOkStrategy.ts` (Puppeteer, Increment 4 —
+  `remoteok`'s listing genuinely needs a real browser to get past a Cloudflare 403 on plain
+  requests).
 - **`AIEnricher`** — *not yet implemented*. Planned interface: `enrich(raw): Promise<Enrichment>`;
   planned implementations: `MockAIEnricher` first, `ClaudeEnricher` (real Claude API) later,
   swapped via config/env.
