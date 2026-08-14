@@ -63,7 +63,7 @@ function parseJobPostingJsonLd(row: ReturnType<ReturnType<typeof cheerio.load>>)
  *   `isRemote` is instead hardcoded `true` below: RemoteOK is a 100%-remote job board by design,
  *   so this is a true statement about the source, not a guess derived from unreliable per-row data.
  */
-function parseListingPage(html: string, source: CrawlSource): RawVacancy[] {
+export function parseListingPage(html: string, source: CrawlSource): RawVacancy[] {
   const $ = cheerio.load(html);
   const vacancies: RawVacancy[] = [];
 
