@@ -198,7 +198,10 @@ Full field definitions live in `ARCHITECTURE.md`. Core entities:
 
 - All code, documentation, comments, variable names, function names, folder names, and UI text must be in **English**.
 - The entire project interface and user-facing content should be in English.
-- Russian can only be used in personal development notes (`.notes/`, git-ignored).
+- Russian can only be used in personal development notes (`.notes/`, git-ignored), and in
+  `.claude/doc/` — a deliberate, tracked exception: that directory holds Sergei's personal
+  learning/presentation write-ups of the tech stack, not project or user-facing documentation.
+  See `.claude/doc/CLAUDE.md` for the conventions governing that directory.
 - Crawling is global, not scoped to a user — see Security Considerations.
 - Respect `robots.txt` and implement rate limiting (via Redis).
 - Puppeteer vs Axios/Cheerio is chosen per source (`CrawlSource.type`), never a per-run setting.

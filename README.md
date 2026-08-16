@@ -12,6 +12,29 @@ stack:
 
 See `CLAUDE.md` for the full spec and `ARCHITECTURE.md` for data models and component design.
 
+## Table of contents
+
+- [Status: implemented so far](#status-implemented-so-far)
+  - [Sources & Crawling — Increment 1 → 3a](#sources--crawling--increment-1--3a)
+  - [Real crawler + Redis + minimal Elasticsearch — Increment 2](#real-crawler--redis--minimal-elasticsearch--increment-2)
+  - [Vacancy detail crawl — Increment 2.2](#vacancy-detail-crawl--increment-22)
+  - [Faceted vacancy search — Increment 3b](#faceted-vacancy-search--increment-3b)
+  - [Search autocomplete — Increment 3c](#search-autocomplete--increment-3c)
+  - [Puppeteer RemoteOK crawl strategy — Increment 4](#puppeteer-remoteok-crawl-strategy--increment-4)
+  - [Automated regression tests + CI — Increment 5](#automated-regression-tests--ci--increment-5)
+  - [Not yet implemented](#not-yet-implemented)
+- [Getting started](#getting-started)
+  - [1. Start infrastructure](#1-start-infrastructure)
+  - [2. Install dependencies](#2-install-dependencies)
+  - [3. Configure environment variables](#3-configure-environment-variables)
+  - [4. Apply database migrations and seed data](#4-apply-database-migrations-and-seed-data)
+  - [5. Run the apps](#5-run-the-apps)
+- [Checking crawled data](#checking-crawled-data)
+  - [Option A — via the API](#option-a--via-the-api)
+  - [Option B — query Elasticsearch directly](#option-b--query-elasticsearch-directly)
+  - [Why a run sometimes shows `cache: miss` right after a previous one](#why-a-run-sometimes-shows-cache-miss-right-after-a-previous-one)
+- [Project structure](#project-structure)
+
 ## Status: implemented so far
 
 - Monorepo scaffold (npm workspaces): `apps/api` (Express) + `apps/web` (Next.js).
@@ -32,7 +55,7 @@ See `CLAUDE.md` for the full spec and `ARCHITECTURE.md` for data models and comp
   Pages: login/register, a protected dashboard stub, and a profile page (edit name, change
   password).
 
-### Sources & Crawling — Increment 1 → 3a
+### [Sources & Crawling — Increment 1 → 3a](.claude/features/01_FEATURE_SOURCES_AND_JOBS.md)
 
 See `.claude/features/01_FEATURE_SOURCES_AND_JOBS.md` (original Increment 1 design) and
 `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md` (Increment 3a refactor — supersedes the
@@ -65,7 +88,7 @@ Elasticsearch filter, never a crawl parameter, so bundling "which sources to cra
 filter results" mixed two unrelated concerns. Crawling now lives directly on Sources; filtering/
 search moved to its own page (Increment 3b).
 
-### Real crawler + Redis + minimal Elasticsearch — Increment 2
+### [Real crawler + Redis + minimal Elasticsearch — Increment 2](.claude/features/02_FEATURE_REAL_CRAWLER_REDIS_ES.md)
 
 See `.claude/features/02_FEATURE_REAL_CRAWLER_REDIS_ES.md`.
 
@@ -80,7 +103,7 @@ See `.claude/features/02_FEATURE_REAL_CRAWLER_REDIS_ES.md`.
 - A simple vacancy list on the Source detail page — see "Checking crawled data" below.
 - No AI enrichment yet.
 
-### Vacancy detail crawl — Increment 2.2
+### [Vacancy detail crawl — Increment 2.2](.claude/features/02b_FEATURE_VACANCY_DETAIL_CRAWL.md)
 
 See `.claude/features/02b_FEATURE_VACANCY_DETAIL_CRAWL.md`.
 
@@ -107,7 +130,7 @@ See `.claude/features/02b_FEATURE_VACANCY_DETAIL_CRAWL.md`.
 - The `description`-aware keyword matching this increment added carries forward into
   Increment 3b's global search endpoint below.
 
-### Faceted vacancy search — Increment 3b
+### [Faceted vacancy search — Increment 3b](.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md#phase-3b--search-page-with-facets)
 
 See `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`'s Phase 3b section.
 
@@ -133,7 +156,7 @@ See `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`'s Phase 3b section.
   first two-column page layout — a deliberate, scoped exception to the single-column convention
   documented in `CLAUDE.md`'s UI Design Guidelines.
 
-### Search autocomplete — Increment 3c
+### [Search autocomplete — Increment 3c](.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md#phase-3c--search-autocomplete-typeahead)
 
 See `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`'s Phase 3c section.
 
@@ -149,12 +172,17 @@ See `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`'s Phase 3c section.
 - Built on the already-installed `@base-ui/react` `combobox` primitive (`shared/ui/combobox.tsx`) —
   no new frontend dependency.
 - Backend: this increment adds the repo's first automated tests (Vitest,
-  `apps/api/src/search/suggestVacancies.test.ts`) for the new suggestion query builder — `npm run
-  test` in `apps/api`. Manual browser testing per `CLAUDE.md`'s Testing Philosophy remains the
+  `apps/api/src/search/suggestVacancies.test.ts`) for the new suggestion query builder, run via:
+
+  ```bash
+  npm run test
+  ```
+
+  in `apps/api`. Manual browser testing per `CLAUDE.md`'s Testing Philosophy remains the
   primary method everywhere else. (The suite was substantially expanded in Increment 5 — see
   below.)
 
-### Puppeteer RemoteOK crawl strategy — Increment 4
+### [Puppeteer RemoteOK crawl strategy — Increment 4](.claude/features/04_FEATURE_PUPPETEER_REMOTEOK.md)
 
 See `.claude/features/04_FEATURE_PUPPETEER_REMOTEOK.md`.
 
@@ -175,7 +203,7 @@ See `.claude/features/04_FEATURE_PUPPETEER_REMOTEOK.md`.
   fetch/parse library, since dispatch (`getStrategy`) is already 1:1 by source name and the library
   is an implementation detail internal to each file.
 
-### Automated regression tests + CI — Increment 5
+### [Automated regression tests + CI — Increment 5](.claude/features/05_FEATURE_CRAWLER_REGRESSION_TESTS_CI.md)
 
 - Expanded the test suite (Vitest) beyond `suggestVacancies.test.ts` to cover the crawler's most
   fragile part — site-markup-dependent parsing — against hand-built HTML fixtures
@@ -273,7 +301,11 @@ npm run dev:web
 Starts `apps/web` on `http://localhost:3000`.
 
 `dev:api`/`dev:web`/`build`/`lint` are our own scripts (see `package.json` → `scripts`), each
-delegating to the matching command inside that workspace via `npm run <script> --workspace <path>`.
+delegating to the matching command inside that workspace via:
+
+```bash
+npm run <script> --workspace <path>
+```
 
 ## Checking crawled data
 
