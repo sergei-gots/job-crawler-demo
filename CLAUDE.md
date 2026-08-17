@@ -28,12 +28,23 @@ Create a clean, well-structured MVP that demonstrates the full tech stack: TypeS
 
 ### Frontend (`apps/web`)
 
-- **Next.js + React** — a crawler management console SPA, organized with **Feature-Sliced
-  Design (FSD)**.
-  Reuses the FSD skeleton and auth flow patterns from the Expense Tracker project
-  (login/register, `entities/session`, `useRequireAuth`, `shared/lib/api.ts`, `shared/ui`),
-  but talks to **our Express API** — we do NOT adopt NestJS.
-- **shadcn/ui** — UI components routed into `shared/ui`
+- **Next.js + React** — a crawler management console **SPA** (Single-Page Application: the page
+  loads once, then navigation/updates happen in the browser via JavaScript instead of a full page
+  reload per click), organized with **Feature-Sliced Design (FSD)** — a way of arranging frontend
+  code into layers by *what a piece of code is for* (e.g. a reusable button vs. a page-specific
+  feature vs. a whole page's widget), so that code for one concern doesn't get tangled with code
+  for another. The exact layers are listed below in "Architecture methodologies".
+  The FSD layer skeleton and the auth building blocks (login/register pages, the
+  `entities/session` slice, the `useRequireAuth` hook, the `shared/lib/api.ts` HTTP client, the
+  `shared/ui` component folder) were carried over from an earlier starting point rather than
+  built from scratch. Everything else — what the app does, its pages/features/entities, and the
+  backend it talks to — is specific to this project: it calls **our own Express API**.
+- **shadcn/ui** — not an installed npm component library; it's a CLI (configured in
+  `apps/web/components.json`) that generates a component's source code (e.g. `button.tsx`,
+  `card.tsx`) and writes it directly into `apps/web/shared/ui/`. Those files become ordinary
+  project source — owned and freely editable — not files pulled from `node_modules`. The
+  `"ui": "@/shared/ui"` alias in `components.json` is what tells the CLI which folder to write
+  generated components into.
 
 ### Infrastructure
 
@@ -41,14 +52,20 @@ Create a clean, well-structured MVP that demonstrates the full tech stack: TypeS
 
 ## Data Sources
 
-Given a 2-week timeline, MVP scope is **one source, done well**, rather than three done thinly:
+Given the original 2-week timeline, the plan was to do **one source well rather than three done
+thinly**. In practice, the crawler abstraction built for the first source (`habr_career`)
+generalized cleanly to a second, structurally different source (`remoteok`, Increment 4) without
+any changes to `crawlRunner.ts` or the `CrawlStrategy` interface — see
+`04_FEATURE_PUPPETEER_REMOTEOK.md` — so two sources are implemented today. `weworkremotely` and
+`craigslist` remain deferred: they're seeded as selectable `CrawlSource` rows, but have no parser
+yet (see below).
 
-| Key              | Site                     | Status   | Type (`CrawlSource.type`)                                     | Notes                                                        |
-| ---------------- | ------------------------ | -------- | -------------------------------------------------------------- | ------------------------------------------------------------- |
-| `habr_career`    | career.habr.com          | MVP      | `STATIC` — confirmed fully server-rendered (both the listing and, per Increment 2.2, the vacancy detail pages); crawled with Axios+Cheerio, no Puppeteer needed | RU tech jobs; good fit for AI skill-extraction demo |
-| `remoteok`       | remoteok.com             | Increment 4 | `DYNAMIC` — confirmed the site returns `403` on a plain non-browser request (Cloudflare bot check); crawled with Puppeteer (a real desktop-Chrome UA, not a bot-identifying string) to get past the wall | Tech jobs with ready-made skill tags; listing page alone carries everything needed (description, tags) via per-row JSON-LD, so no detail-page crawl. `baseSalary`/location in that JSON-LD are boilerplate placeholders (identical across every row), not real per-employer data — not stored, same reasoning as habr's dropped salary field; replaces `moikrug` |
-| `weworkremotely` | weworkremotely.com       | post-MVP | `STATIC` — `robots.txt` is `Allow: /` aside from account/admin paths; listings confirmed server-rendered on a manual check | Simple, long-established scraper-friendly job board |
-| `craigslist`     | craigslist.org (SW jobs) | post-MVP | `STATIC` — listings are server-rendered and accessible without login on a single request, but craigslist has a documented history of legal/technical enforcement against scrapers (e.g. the 3taps/PadMapper case); expect rate-limiting or CAPTCHA under sustained automated access even though a one-off check looks simple | International example, multiple cities |
+| Key              | Site                     | Status          | Type (`CrawlSource.type`)                                     | Notes                                                        |
+| ---------------- | ------------------------ | --------------- | -------------------------------------------------------------- | ------------------------------------------------------------- |
+| `habr_career`    | career.habr.com          | **Implemented** (Increment 1–2.2) | `STATIC` — confirmed fully server-rendered (both the listing and, per Increment 2.2, the vacancy detail pages); crawled with Axios+Cheerio, no Puppeteer needed | RU tech jobs; good fit for AI skill-extraction demo |
+| `remoteok`       | remoteok.com             | **Implemented** (Increment 4) | `DYNAMIC` — confirmed the site returns `403` on a plain non-browser request (Cloudflare bot check); crawled with Puppeteer (a real desktop-Chrome UA, not a bot-identifying string) to get past the wall | Tech jobs with ready-made skill tags; listing page alone carries everything needed (description, tags) via per-row JSON-LD, so no detail-page crawl. `baseSalary`/location in that JSON-LD are boilerplate placeholders (identical across every row), not real per-employer data — not stored, same reasoning as habr's dropped salary field; replaces `moikrug` |
+| `weworkremotely` | weworkremotely.com       | Deferred, no parser yet | `STATIC` — `robots.txt` is `Allow: /` aside from account/admin paths; listings confirmed server-rendered on a manual check | Simple, long-established scraper-friendly job board |
+| `craigslist`     | craigslist.org (SW jobs) | Deferred, no parser yet | `STATIC` — listings are server-rendered and accessible without login on a single request, but craigslist has a documented history of legal/technical enforcement against scrapers (e.g. the 3taps/PadMapper case); expect rate-limiting or CAPTCHA under sustained automated access even though a one-off check looks simple | International example, multiple cities |
 
 `moikrug` is gone as a distinct source — `moikrug.ru` now permanently redirects (301, both
 `robots.txt` and the site itself) to `career.habr.com`; Habr absorbed it. Replaced by `remoteok`
@@ -198,7 +215,10 @@ Full field definitions live in `ARCHITECTURE.md`. Core entities:
 
 - All code, documentation, comments, variable names, function names, folder names, and UI text must be in **English**.
 - The entire project interface and user-facing content should be in English.
-- Russian can only be used in personal development notes (`.notes/`, git-ignored).
+- Russian can only be used in personal development notes (`.notes/`, git-ignored), and in
+  `.claude/doc/` — a deliberate, tracked exception: that directory holds Sergei's personal
+  learning/presentation write-ups of the tech stack, not project or user-facing documentation.
+  See `.claude/doc/CLAUDE.md` for the conventions governing that directory.
 - Crawling is global, not scoped to a user — see Security Considerations.
 - Respect `robots.txt` and implement rate limiting (via Redis).
 - Puppeteer vs Axios/Cheerio is chosen per source (`CrawlSource.type`), never a per-run setting.
