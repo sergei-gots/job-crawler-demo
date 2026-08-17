@@ -20,7 +20,7 @@ company" одним запросом, с учётом остальных акт�
 (`terms` агрегация с `include`-regex). Это ровно то, для чего проектировался Elasticsearch —
 поисковый движок в первую очередь, а не транзакционное хранилище.
 
-## Индекс — пересобираемая проекция, не источник правды
+## Индекс как пересобираемая проекция
 
 → [`crawlerResultsIndex.ts#L117`](../../../apps/api/src/search/crawlerResultsIndex.ts#L117)
 
@@ -30,7 +30,9 @@ export const CRAWLER_RESULTS_SCHEMA_VERSION = 3;
 export async function ensureCrawlerResultsIndex(): Promise<void> {
   if (indexEnsured) return;
 
-  const exists = await esClient.indices.exists({ index: CRAWLER_RESULTS_INDEX });
+  const exists = await esClient.indices.exists({
+    index: CRAWLER_RESULTS_INDEX,
+  });
   if (exists) {
     const liveVersion = await readLiveSchemaVersion();
     if (liveVersion === CRAWLER_RESULTS_SCHEMA_VERSION) {
@@ -38,7 +40,10 @@ export async function ensureCrawlerResultsIndex(): Promise<void> {
       return;
     }
     // версия не совпадает — индекс устарел под текущий маппинг
-    await esClient.indices.delete({ index: CRAWLER_RESULTS_INDEX }, { ignore: [404] });
+    await esClient.indices.delete(
+      { index: CRAWLER_RESULTS_INDEX },
+      { ignore: [404] },
+    );
   }
 
   await createCrawlerResultsIndex();
@@ -70,29 +75,34 @@ export async function ensureCrawlerResultsIndex(): Promise<void> {
 ```ts
 const CRAWLER_RESULTS_PROPERTIES = {
   title: {
-    type: "text" as const,
-    fields: { suggest: { type: "keyword" as const, normalizer: "lowercase_normalizer" } },
-  },
-  company: {
-    type: "text" as const,
+    type: 'text' as const,
     fields: {
-      keyword: { type: "keyword" as const },
-      suggest: { type: "keyword" as const, normalizer: "lowercase_normalizer" },
+      suggest: { type: 'keyword' as const, normalizer: 'lowercase_normalizer' },
     },
   },
-  location: { type: "text" as const, fields: { keyword: { type: "keyword" as const } } },
-  specialization: { type: "keyword" as const },
-  seniority: { type: "keyword" as const },
-  isRemote: { type: "boolean" as const },
+  company: {
+    type: 'text' as const,
+    fields: {
+      keyword: { type: 'keyword' as const },
+      suggest: { type: 'keyword' as const, normalizer: 'lowercase_normalizer' },
+    },
+  },
+  location: {
+    type: 'text' as const,
+    fields: { keyword: { type: 'keyword' as const } },
+  },
+  specialization: { type: 'keyword' as const },
+  seniority: { type: 'keyword' as const },
+  isRemote: { type: 'boolean' as const },
 };
 ```
 
-| Тип поля           | Для чего                                                                                            | Пример здесь                          |
-| ------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------- |
-| `text`               | Токенизируется (разбивается на слова), участвует в full-text релевантном поиске (`multi_match`)         | `title`, `company`, `description`      |
-| `keyword`             | Хранится как единая неделимая строка, участвует в точных фильтрах и `terms`-агрегациях (фасеты)          | `specialization`, `seniority`          |
-| `text` + `.keyword` под-поле | Одно и то же значение доступно **и** для полнотекстового поиска, **и** для фасетной агрегации — `text`-поле само по себе агрегировать нельзя | `company`, `location`                  |
-| `text` + `.suggest` под-поле | Отдельное от `.keyword` keyword-поле с `lowercase_normalizer` — под autocomplete по префиксу, независимо от регистра, не трогая `.keyword` (тот должен остаться в исходном регистре для фасетов) | `title.suggest`, `company.suggest`     |
+| Тип поля                     | Для чего                                                                                                                                                                                         | Пример здесь                       |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| `text`                       | Токенизируется (разбивается на слова), участвует в full-text релевантном поиске (`multi_match`)                                                                                                  | `title`, `company`, `description`  |
+| `keyword`                    | Хранится как единая неделимая строка, участвует в точных фильтрах и `terms`-агрегациях (фасеты)                                                                                                  | `specialization`, `seniority`      |
+| `text` + `.keyword` под-поле | Одно и то же значение доступно **и** для полнотекстового поиска, **и** для фасетной агрегации — `text`-поле само по себе агрегировать нельзя                                                     | `company`, `location`              |
+| `text` + `.suggest` под-поле | Отдельное от `.keyword` keyword-поле с `lowercase_normalizer` — под autocomplete по префиксу, независимо от регистра, не трогая `.keyword` (тот должен остаться в исходном регистре для фасетов) | `title.suggest`, `company.suggest` |
 
 Ключевой нюанс: `company.keyword` и `company.suggest` — два **разных** под-поля с разным
 назначением, специально не объединены в одно. `company.keyword` управляет фасетом "Company"
@@ -124,7 +134,12 @@ export async function upsertVacancy(raw: RawVacancy): Promise<void> {
     index: CRAWLER_RESULTS_INDEX,
     id,
     doc: { sourceId: raw.sourceId, /* ... */ lastSeenAt: now, ...detailFields },
-    upsert: { sourceId: raw.sourceId, /* ... */ firstSeenAt: now, lastSeenAt: now, ...detailFields },
+    upsert: {
+      sourceId: raw.sourceId,
+      /* ... */ firstSeenAt: now,
+      lastSeenAt: now,
+      ...detailFields,
+    },
   });
 }
 ```
@@ -152,29 +167,45 @@ export async function upsertVacancy(raw: RawVacancy): Promise<void> {
 
 ```ts
 const FACET_FIELDS = {
-  specialization: "specialization",
-  seniority: "seniority",
-  isRemote: "isRemote",
-  location: "location.keyword",
-  company: "company.keyword",
+  specialization: 'specialization',
+  seniority: 'seniority',
+  isRemote: 'isRemote',
+  location: 'location.keyword',
+  company: 'company.keyword',
 } as const;
 
-export async function searchVacancies(filters: VacancySearchFilters): Promise<VacancySearchResult> {
-  const filter: QueryDslQueryContainer[] = [{ range: { lastSeenAt: { gte: staleCutoffIso() } } }];
-  if (filters.specialization?.length) filter.push({ terms: { specialization: filters.specialization } });
+export async function searchVacancies(
+  filters: VacancySearchFilters,
+): Promise<VacancySearchResult> {
+  const filter: QueryDslQueryContainer[] = [
+    { range: { lastSeenAt: { gte: staleCutoffIso() } } },
+  ];
+  if (filters.specialization?.length)
+    filter.push({ terms: { specialization: filters.specialization } });
   // ...остальные фасетные фильтры тем же паттерном (terms по каждому активному filters.*)
 
   const must: QueryDslQueryContainer[] = filters.q
-    ? [{ multi_match: { query: filters.q, fields: ["title", "company", "description"] } }]
+    ? [
+        {
+          multi_match: {
+            query: filters.q,
+            fields: ['title', 'company', 'description'],
+          },
+        },
+      ]
     : [];
 
   const result = await esClient.search({
     index: CRAWLER_RESULTS_INDEX,
     query: { bool: { filter, must } },
-    from, size: pageSize,
+    from,
+    size: pageSize,
     track_total_hits: true,
     aggregations: Object.fromEntries(
-      Object.entries(FACET_FIELDS).map(([name, field]) => [name, { terms: { field, size: 20 } }]),
+      Object.entries(FACET_FIELDS).map(([name, field]) => [
+        name,
+        { terms: { field, size: 20 } },
+      ]),
     ),
   });
   // ...сборка facets из result.aggregations, total из result.hits.total
@@ -204,7 +235,10 @@ export async function searchVacancies(filters: VacancySearchFilters): Promise<Va
 → [`suggestVacancies.ts#L33`](../../../apps/api/src/search/suggestVacancies.ts#L33)
 
 ```ts
-const SUGGEST_FIELDS = { title: "title.suggest", company: "company.suggest" } as const;
+const SUGGEST_FIELDS = {
+  title: 'title.suggest',
+  company: 'company.suggest',
+} as const;
 
 const include = `${escapeRegExp(prefix.trim().toLowerCase())}.*`;
 
@@ -231,7 +265,7 @@ const result = await esClient.search({
 3. **Вложенный `top_hits` под именем `original`** — сама `terms`-агрегация вернула бы значение
    **нормализованное** (нижний регистр — тот бакет-key и есть значение поля `.suggest`), но
    пользователю нужно показать "JetBrains", а не "jetbrains". `top_hits: { size: 1, _source:
-   [field] }` достаёт один реальный документ из этого бакета и берёт `field` (`title`/`company`,
+[field] }` достаёт один реальный документ из этого бакета и берёт `field` (`title`/`company`,
    исходное `text`-поле, не `.suggest`) из него — оригинальный регистр восстанавливается через
    реальный документ, а не через саму агрегацию.
 4. **`MIN_PREFIX_LENGTH = 2`** — короче двух символов запрос не уходит в Elasticsearch вообще
@@ -247,7 +281,10 @@ export async function clearSearchData(): Promise<void> {
   const sources = await prisma.crawlSource.findMany({ select: { id: true } });
   await Promise.all(sources.map(({ id }) => stopAndWaitForSource(id)));
 
-  await esClient.indices.delete({ index: CRAWLER_RESULTS_INDEX }, { ignore: [404] });
+  await esClient.indices.delete(
+    { index: CRAWLER_RESULTS_INDEX },
+    { ignore: [404] },
+  );
   resetCrawlerResultsIndexCache();
   await ensureCrawlerResultsIndex();
   await prisma.crawlRun.deleteMany({});
