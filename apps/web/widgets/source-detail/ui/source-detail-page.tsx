@@ -39,7 +39,8 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [vacancies, setVacancies] = useState<Vacancy[] | null>(null);
   const [vacanciesPage, setVacanciesPage] = useState(1);
-  const [showLogs, setShowLogs] = useState(true);
+  const [showLogs, setShowLogs] = useState(false);
+  const [showVacancies, setShowVacancies] = useState(false);
   const [clearDataPending, setClearDataPending] = useState(false);
   const [expandedRawVacancyIds, setExpandedRawVacancyIds] = useState<Set<string>>(new Set());
 
@@ -296,54 +297,65 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
 
             <Card>
               <CardHeader>
-                <CardTitle>Vacancies</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Vacancies</CardTitle>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowVacancies((v) => !v)}
+                  >
+                    {showVacancies ? "Hide vacancies" : "Show vacancies"}
+                  </Button>
+                </div>
               </CardHeader>
-              <CardContent>
-                {!vacancies ? (
-                  <p className="text-sm text-muted-foreground">Loading...</p>
-                ) : vacancies.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No vacancies found yet.</p>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {pagedVacancies.map((vacancy, index) => {
-                      const key = vacancyKey(vacancy);
-                      const ordinal = (vacanciesPage - 1) * VACANCIES_PAGE_SIZE + index + 1;
-                      return (
-                        <VacancyCard
-                          key={key}
-                          vacancy={vacancy}
-                          ordinal={ordinal}
-                          isRawExpanded={expandedRawVacancyIds.has(key)}
-                          onToggleRaw={() => toggleRawVacancy(key)}
-                        />
-                      );
-                    })}
-                  </div>
-                )}
-                {vacancies && vacancies.length > VACANCIES_PAGE_SIZE && (
-                  <div className="mt-3 flex items-center justify-between">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={vacanciesPage === 1}
-                      onClick={() => setVacanciesPage((p) => p - 1)}
-                    >
-                      Previous
-                    </Button>
-                    <p className="text-xs text-muted-foreground">
-                      Page {vacanciesPage} of {totalVacancyPages}
-                    </p>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={vacanciesPage >= totalVacancyPages}
-                      onClick={() => setVacanciesPage((p) => p + 1)}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
+              {showVacancies && (
+                <CardContent>
+                  {!vacancies ? (
+                    <p className="text-sm text-muted-foreground">Loading...</p>
+                  ) : vacancies.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No vacancies found yet.</p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {pagedVacancies.map((vacancy, index) => {
+                        const key = vacancyKey(vacancy);
+                        const ordinal = (vacanciesPage - 1) * VACANCIES_PAGE_SIZE + index + 1;
+                        return (
+                          <VacancyCard
+                            key={key}
+                            vacancy={vacancy}
+                            ordinal={ordinal}
+                            isRawExpanded={expandedRawVacancyIds.has(key)}
+                            onToggleRaw={() => toggleRawVacancy(key)}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                  {vacancies && vacancies.length > VACANCIES_PAGE_SIZE && (
+                    <div className="mt-3 flex items-center justify-between">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={vacanciesPage === 1}
+                        onClick={() => setVacanciesPage((p) => p - 1)}
+                      >
+                        Previous
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        Page {vacanciesPage} of {totalVacancyPages}
+                      </p>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={vacanciesPage >= totalVacancyPages}
+                        onClick={() => setVacanciesPage((p) => p + 1)}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              )}
             </Card>
           </>
         )}
