@@ -4,13 +4,95 @@ import { useRequireAuth } from "@/entities/session";
 import { Card, CardContent, CardDescription, CardHeader } from "@/shared/ui/card";
 import { PageTitle } from "@/shared/ui/page-title";
 
-const STACK_GROUPS = [
-  { label: "Backend", items: "Node.js, Express, TypeScript" },
-  { label: "Frontend", items: "Next.js, React, Tailwind CSS" },
-  { label: "Crawling", items: "Puppeteer, Axios + Cheerio" },
-  { label: "Data", items: "PostgreSQL, Elasticsearch, Redis" },
-  { label: "Auth", items: "JWT" },
-  { label: "AI enrichment", items: "Claude API" },
+interface StackItem {
+  name: string;
+  tooltip: string;
+}
+
+interface StackGroup {
+  label: string;
+  items: StackItem[];
+}
+
+const STACK_GROUPS: StackGroup[] = [
+  {
+    label: "Backend",
+    items: [
+      { name: "Node.js", tooltip: "JavaScript runtime environment for running server-side code" },
+      {
+        name: "Express",
+        tooltip: "Minimal web framework for Node.js — routing, middleware, HTTP request handling",
+      },
+      {
+        name: "TypeScript",
+        tooltip: "Typed superset of JavaScript that compiles down to plain JavaScript",
+      },
+    ],
+  },
+  {
+    label: "Frontend",
+    items: [
+      {
+        name: "Next.js",
+        tooltip: "React framework with file-based routing and both client- and server-rendered pages",
+      },
+      { name: "React", tooltip: "JavaScript library for building UIs out of reusable components" },
+      {
+        name: "Tailwind CSS",
+        tooltip: "Utility-first CSS framework — styles are applied via small, composable class names",
+      },
+    ],
+  },
+  {
+    label: "Crawling",
+    items: [
+      {
+        name: "Puppeteer",
+        tooltip: "Headless-browser automation library, used to crawl pages that need JavaScript to render",
+      },
+      {
+        name: "Axios + Cheerio",
+        tooltip:
+          "Axios (HTTP client) fetches raw HTML, Cheerio parses it jQuery-style — used for pages that are already fully rendered by the server",
+      },
+    ],
+  },
+  {
+    label: "Data",
+    items: [
+      {
+        name: "PostgreSQL",
+        tooltip: "Relational database — source of truth for users, sources, and crawl run/log history",
+      },
+      {
+        name: "Elasticsearch",
+        tooltip: "Search engine storing crawled vacancies, powering full-text search and facets",
+      },
+      {
+        name: "Redis",
+        tooltip: "In-memory store used here for per-source rate limiting and short-lived page caching",
+      },
+    ],
+  },
+  {
+    label: "Auth",
+    items: [
+      {
+        name: "JWT",
+        tooltip: "JSON Web Token — a signed token proving who's logged in, sent with each API request",
+      },
+    ],
+  },
+  {
+    label: "AI enrichment",
+    items: [
+      {
+        name: "Claude API",
+        tooltip:
+          "Anthropic's LLM API, planned for summarizing vacancies and extracting skills — not implemented yet",
+      },
+    ],
+  },
 ];
 
 export function About() {
@@ -43,7 +125,14 @@ export function About() {
               {STACK_GROUPS.map((group) => (
                 <li key={group.label}>
                   <span className="font-medium text-foreground">{group.label}: </span>
-                  <span className="text-muted-foreground">{group.items}</span>
+                  <span className="text-muted-foreground">
+                    {group.items.map((item, index) => (
+                      <span key={item.name}>
+                        <span title={item.tooltip}>{item.name}</span>
+                        {index < group.items.length - 1 ? ", " : ""}
+                      </span>
+                    ))}
+                  </span>
                 </li>
               ))}
             </ul>
