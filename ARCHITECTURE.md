@@ -96,7 +96,8 @@
 | isActive         | boolean       | default `true`                                     |
 | respectRobotsTxt | boolean       | default `true`                                     |
 | defaultDelayMs   | int           | default `2000`; per-source rate-limit interval     |
-| maxPagesToCrawl  | int           | default `1`; bounds listing-page pagination depth per crawl |
+| maxPagesToCrawl  | int           | default `1`; bounds listing-page pagination depth per crawl; user-editable (1-4) via `PATCH /sources/:id`, but only when `supportsPageLimit` is `true` |
+| supportsPageLimit | boolean      | default `true`; `false` for sources whose listing has no real pagination (e.g. RemoteOK — a fixed set of rows regardless of page number), so `maxPagesToCrawl` would have no effect and the UI disables editing it |
 | createdAt        | timestamp     |                                                     |
 | updatedAt        | timestamp     |                                                     |
 

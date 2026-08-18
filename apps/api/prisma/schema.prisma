@@ -19,16 +19,17 @@ model User {
 }
 
 model CrawlSource {
-  id               Int        @id @default(autoincrement())
-  name             String     @unique
-  baseUrl          String
-  type             SourceType
-  isActive         Boolean    @default(true)
-  respectRobotsTxt Boolean    @default(true)
-  defaultDelayMs   Int        @default(2000)
-  maxPagesToCrawl  Int        @default(1)
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  id                Int        @id @default(autoincrement())
+  name              String     @unique
+  baseUrl           String
+  type              SourceType
+  isActive          Boolean    @default(true)
+  respectRobotsTxt  Boolean    @default(true)
+  defaultDelayMs    Int        @default(2000)
+  maxPagesToCrawl   Int        @default(1)
+  supportsPageLimit Boolean    @default(true)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 
   runs CrawlRun[]
 
