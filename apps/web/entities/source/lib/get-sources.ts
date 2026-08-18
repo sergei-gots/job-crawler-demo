@@ -11,6 +11,7 @@ export interface Source {
   respectRobotsTxt: boolean;
   defaultDelayMs: number;
   maxPagesToCrawl: number;
+  supportsPageLimit: boolean;
 }
 
 export async function getSources(token: string): Promise<Source[]> {

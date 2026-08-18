@@ -256,7 +256,14 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
                     <span className="text-muted-foreground">Rate limit: </span>
                     {formatDelay(source.defaultDelayMs)}
                   </p>
-                  <div className="flex items-center gap-2">
+                  <div
+                    className="flex items-center gap-2"
+                    title={
+                      source.supportsPageLimit
+                        ? undefined
+                        : `${source.name}'s listing has no real pagination — it always fetches everything in one request, so this setting has no effect`
+                    }
+                  >
                     <span className="text-muted-foreground">Pages to crawl: </span>
                     <Input
                       type="number"
@@ -268,13 +275,15 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
                         setMaxPagesError(null);
                       }}
                       className="h-7 w-16 px-2 py-1"
-                      disabled={maxPagesPending}
+                      disabled={maxPagesPending || !source.supportsPageLimit}
                     />
                     <Button
                       variant="secondary"
                       size="sm"
                       disabled={
-                        maxPagesPending || maxPagesInput === String(source.maxPagesToCrawl)
+                        maxPagesPending ||
+                        !source.supportsPageLimit ||
+                        maxPagesInput === String(source.maxPagesToCrawl)
                       }
                       onClick={handleSaveMaxPages}
                     >
@@ -282,6 +291,11 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
                     </Button>
                   </div>
                   {maxPagesError && <p className="text-sm text-destructive">{maxPagesError}</p>}
+                  {!source.supportsPageLimit && (
+                    <p className="text-sm text-muted-foreground">
+                      Not applicable — this source has no real pagination.
+                    </p>
+                  )}
                   <p>
                     <span className="text-muted-foreground">Last run: </span>
                     {run?.startedAt ? new Date(run.startedAt).toLocaleString() : "Never"}
