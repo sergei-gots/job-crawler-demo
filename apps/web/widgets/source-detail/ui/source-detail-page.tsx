@@ -256,46 +256,43 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
                     <span className="text-muted-foreground">Rate limit: </span>
                     {formatDelay(source.defaultDelayMs)}
                   </p>
-                  <div
-                    className="flex items-center gap-2"
-                    title={
-                      source.supportsPageLimit
-                        ? undefined
-                        : `${source.name}'s listing has no real pagination — it always fetches everything in one request, so this setting has no effect`
-                    }
-                  >
-                    <span className="text-muted-foreground">Pages to crawl: </span>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={4}
-                      value={maxPagesInput}
-                      onChange={(e) => {
-                        setMaxPagesInput(e.target.value);
-                        setMaxPagesError(null);
-                      }}
-                      className="h-7 w-16 px-2 py-1"
-                      disabled={maxPagesPending || !source.supportsPageLimit}
-                    />
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={
-                        maxPagesPending ||
-                        !source.supportsPageLimit ||
-                        maxPagesInput === String(source.maxPagesToCrawl)
-                      }
-                      onClick={handleSaveMaxPages}
-                    >
-                      {maxPagesPending ? "Saving..." : "Save"}
-                    </Button>
-                  </div>
-                  {maxPagesError && <p className="text-sm text-destructive">{maxPagesError}</p>}
-                  {!source.supportsPageLimit && (
-                    <p className="text-sm text-muted-foreground">
-                      Not applicable — this source has no real pagination.
+                  {source.supportsPageLimit ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">Pages to crawl: </span>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={4}
+                        value={maxPagesInput}
+                        onChange={(e) => {
+                          setMaxPagesInput(e.target.value);
+                          setMaxPagesError(null);
+                        }}
+                        className="h-7 w-16 px-2 py-1"
+                        disabled={maxPagesPending}
+                      />
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={
+                          maxPagesPending || maxPagesInput === String(source.maxPagesToCrawl)
+                        }
+                        onClick={handleSaveMaxPages}
+                      >
+                        {maxPagesPending ? "Saving..." : "Save"}
+                      </Button>
+                    </div>
+                  ) : (
+                    <p>
+                      <span className="text-muted-foreground">Pages to crawl: </span>
+                      <span
+                        title={`${source.name}'s listing has no real pagination — it always fetches everything in one request, so this setting has no effect`}
+                      >
+                        Not applicable
+                      </span>
                     </p>
                   )}
+                  {maxPagesError && <p className="text-sm text-destructive">{maxPagesError}</p>}
                   <p>
                     <span className="text-muted-foreground">Last run: </span>
                     {run?.startedAt ? new Date(run.startedAt).toLocaleString() : "Never"}
