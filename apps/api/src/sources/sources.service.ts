@@ -5,6 +5,7 @@ import { ApiError } from "../utils/errors.js";
 import { queryVacanciesForSource } from "../search/queryVacancies.js";
 import { deleteVacanciesForSource } from "../search/deleteVacancies.js";
 import type { CrawlerResultDoc } from "../search/crawlerResultsIndex.js";
+import type { UpdateSourceSettingsInput } from "./sources.schemas.js";
 import {
   executeCrawlRun,
   isSourceCrawling,
@@ -24,6 +25,17 @@ export async function getSourceById(id: number): Promise<CrawlSource> {
     throw new ApiError(404, "Source not found");
   }
   return source;
+}
+
+export async function updateSourceSettings(
+  id: number,
+  input: UpdateSourceSettingsInput,
+): Promise<CrawlSource> {
+  await getSourceById(id);
+  return prisma.crawlSource.update({
+    where: { id },
+    data: { maxPagesToCrawl: input.maxPagesToCrawl },
+  });
 }
 
 export async function getSourceVacancies(id: number): Promise<CrawlerResultDoc[]> {

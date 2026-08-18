@@ -5,6 +5,7 @@ import {
   getSource,
   getSources,
   getVacancies,
+  patchSource,
   postClearData,
   postCrawl,
   postCrawlAll,
@@ -17,6 +18,7 @@ sourcesRouter.use(requireAuth);
 sourcesRouter.get("/", getSources);
 sourcesRouter.post("/crawl-all", postCrawlAll);
 sourcesRouter.get("/:id", getSource);
+sourcesRouter.patch("/:id", patchSource);
 sourcesRouter.get("/:id/vacancies", getVacancies);
 sourcesRouter.get("/:id/run", getRun);
 sourcesRouter.post("/:id/crawl", postCrawl);

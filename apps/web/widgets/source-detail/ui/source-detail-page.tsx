@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { clearSourceData } from "@/features/admin-actions";
+import { updateSourceMaxPagesToCrawl, validateMaxPagesToCrawl } from "@/features/edit-source-settings";
 import { useCrawlActions } from "@/features/run-crawl";
 import { useRequireAuth } from "@/entities/session";
 import {
@@ -17,6 +18,7 @@ import { VacancyCard, vacancyKey, type Vacancy } from "@/entities/vacancy";
 import { ApiError } from "@/shared/lib/api";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
+import { Input } from "@/shared/ui/input";
 import { StatusBadge } from "@/shared/ui/status-badge";
 
 const POLL_INTERVAL_MS = 2000;
@@ -43,6 +45,19 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
   const [showVacancies, setShowVacancies] = useState(false);
   const [clearDataPending, setClearDataPending] = useState(false);
   const [expandedRawVacancyIds, setExpandedRawVacancyIds] = useState<Set<string>>(new Set());
+  const [maxPagesInput, setMaxPagesInput] = useState("");
+  const [maxPagesError, setMaxPagesError] = useState<string | null>(null);
+  const [maxPagesPending, setMaxPagesPending] = useState(false);
+  // Sync the input from the freshly loaded/saved source value, without an effect (adjust state
+  // during render — same pattern as the filters-changed-so-reset-page logic in
+  // use-vacancy-search.ts) — `lastLoadedMaxPages` tracks what the input was last synced to, so a
+  // real change in `source` re-syncs, but the user's own in-progress edit doesn't get clobbered
+  // on every render.
+  const [lastLoadedMaxPages, setLastLoadedMaxPages] = useState<number | null>(null);
+  if (source && source.maxPagesToCrawl !== lastLoadedMaxPages) {
+    setLastLoadedMaxPages(source.maxPagesToCrawl);
+    setMaxPagesInput(String(source.maxPagesToCrawl));
+  }
 
   const toggleRawVacancy = useCallback((vacancyKey: string) => {
     setExpandedRawVacancyIds((prev) => {
@@ -165,6 +180,29 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
     }
   }
 
+  async function handleSaveMaxPages() {
+    if (!token) return;
+    const parsed = Number(maxPagesInput);
+    const validationError = validateMaxPagesToCrawl(parsed);
+    if (validationError) {
+      setMaxPagesError(validationError);
+      return;
+    }
+    setMaxPagesError(null);
+    setMaxPagesPending(true);
+    try {
+      setSource(await updateSourceMaxPagesToCrawl(sourceId, parsed, token));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      setMaxPagesError(err instanceof ApiError ? err.message : "Failed to save");
+    } finally {
+      setMaxPagesPending(false);
+    }
+  }
+
   const actionPending = pendingId === sourceId;
   const error = actionError ?? loadError;
   const pagedVacancies = (vacancies ?? []).slice(
@@ -218,10 +256,32 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
                     <span className="text-muted-foreground">Rate limit: </span>
                     {formatDelay(source.defaultDelayMs)}
                   </p>
-                  <p>
+                  <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">Pages to crawl: </span>
-                    {source.maxPagesToCrawl}
-                  </p>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={4}
+                      value={maxPagesInput}
+                      onChange={(e) => {
+                        setMaxPagesInput(e.target.value);
+                        setMaxPagesError(null);
+                      }}
+                      className="h-7 w-16 px-2 py-1"
+                      disabled={maxPagesPending}
+                    />
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={
+                        maxPagesPending || maxPagesInput === String(source.maxPagesToCrawl)
+                      }
+                      onClick={handleSaveMaxPages}
+                    >
+                      {maxPagesPending ? "Saving..." : "Save"}
+                    </Button>
+                  </div>
+                  {maxPagesError && <p className="text-sm text-destructive">{maxPagesError}</p>}
                   <p>
                     <span className="text-muted-foreground">Last run: </span>
                     {run?.startedAt ? new Date(run.startedAt).toLocaleString() : "Never"}

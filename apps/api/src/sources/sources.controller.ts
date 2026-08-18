@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { handleError } from "../utils/errors.js";
+import { updateSourceSettingsSchema } from "./sources.schemas.js";
 import {
   clearSourceData,
   getSourceById,
@@ -9,6 +10,7 @@ import {
   startAllSourcesCrawl,
   startSourceCrawl,
   stopSourceCrawl,
+  updateSourceSettings,
 } from "./sources.service.js";
 
 export async function getSources(_req: Request, res: Response): Promise<void> {
@@ -29,6 +31,27 @@ export async function getSource(req: Request, res: Response): Promise<void> {
 
   try {
     const source = await getSourceById(id);
+    res.status(200).json({ source });
+  } catch (error) {
+    handleError(res, error, "sources");
+  }
+}
+
+export async function patchSource(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid source id" });
+    return;
+  }
+
+  const parsed = updateSourceSettingsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
+    return;
+  }
+
+  try {
+    const source = await updateSourceSettings(id, parsed.data);
     res.status(200).json({ source });
   } catch (error) {
     handleError(res, error, "sources");
