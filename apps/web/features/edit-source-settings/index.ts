@@ -1,4 +1,8 @@
-export { updateSourceMaxVacanciesToCrawl, updateSourceDelayMs } from "./api/update-source-settings";
+export {
+  updateSourceMaxVacanciesToCrawl,
+  updateSourceDelayMs,
+  updateListingActive,
+} from "./api/update-source-settings";
 export {
   MIN_VACANCIES_TO_CRAWL,
   MAX_VACANCIES_TO_CRAWL,

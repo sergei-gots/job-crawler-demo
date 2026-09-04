@@ -4,26 +4,36 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { clearSourceData } from "@/features/admin-actions";
 import {
+  updateListingActive,
   updateSourceDelayMs,
   updateSourceMaxVacanciesToCrawl,
   validateDelayMs,
   validateMaxVacanciesToCrawl,
 } from "@/features/edit-source-settings";
-import { useCrawlActions } from "@/features/run-crawl";
+import {
+  sourceSlot,
+  startListingCrawl,
+  stopListingCrawl,
+  useCrawlActions,
+} from "@/features/run-crawl";
 import { useRequireAuth } from "@/entities/session";
 import {
+  aggregateListingStatus,
+  getListingRun,
   getSource,
   getSourceRun,
   getSourceVacancies,
   StrategyFlow,
   type CrawlRun,
   type CrawlRunWithLogs,
+  type Listing,
   type Source,
 } from "@/entities/source";
 import { VacancyCard, vacancyKey, type Vacancy } from "@/entities/vacancy";
 import { ApiError } from "@/shared/lib/api";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
+import { Checkbox } from "@/shared/ui/checkbox";
 import { Input } from "@/shared/ui/input";
 import { StatusBadge } from "@/shared/ui/status-badge";
 
@@ -34,6 +44,9 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
   const { token, handleUnauthorized } = useRequireAuth();
   const [source, setSource] = useState<Source | null>(null);
   const [run, setRun] = useState<CrawlRunWithLogs | null>(null);
+  const [listingRuns, setListingRuns] = useState<Record<number, CrawlRun | null>>({});
+  const [bulkPending, setBulkPending] = useState(false);
+  const [listingPendingIds, setListingPendingIds] = useState<Set<number>>(new Set());
   const [loadError, setLoadError] = useState<string | null>(null);
   const [vacancies, setVacancies] = useState<Vacancy[] | null>(null);
   const [vacanciesPage, setVacanciesPage] = useState(1);
@@ -105,11 +118,24 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
     }
   }, [token, sourceId, handleUnauthorized, loadVacancies]);
 
+  const loadListingRuns = useCallback(
+    async (listingIds: number[]) => {
+      if (!token || listingIds.length === 0) return;
+      const entries = await Promise.all(
+        listingIds.map(async (listingId) => [listingId, await getListingRun(sourceId, listingId, token)] as const),
+      );
+      setListingRuns((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
+    },
+    [token, sourceId],
+  );
+
   useEffect(() => {
     if (!token) return;
     (async () => {
+      let loadedSource: Source | null = null;
       try {
-        setSource(await getSource(sourceId, token));
+        loadedSource = await getSource(sourceId, token);
+        setSource(loadedSource);
       } catch (err) {
         if (err instanceof ApiError && err.status === 401) {
           handleUnauthorized();
@@ -118,15 +144,25 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
         setLoadError("Failed to load source");
       }
       // Independent requests — run in parallel instead of doubling the round-trip latency.
-      await Promise.all([loadRun(), loadVacancies()]);
+      await Promise.all([
+        loadRun(),
+        loadVacancies(),
+        loadListingRuns(loadedSource?.listings.map((l) => l.id) ?? []),
+      ]);
     })();
-  }, [token, sourceId, handleUnauthorized, loadRun, loadVacancies]);
+  }, [token, sourceId, handleUnauthorized, loadRun, loadVacancies, loadListingRuns]);
+
+  const hasRunningListing = Object.values(listingRuns).some((r) => r?.status === "RUNNING");
 
   useEffect(() => {
-    if (run?.status !== "RUNNING") return;
-    const interval = setInterval(loadRun, POLL_INTERVAL_MS);
+    if (run?.status !== "RUNNING" && !hasRunningListing) return;
+    const listingIds = source?.listings.map((l) => l.id) ?? [];
+    const interval = setInterval(() => {
+      loadRun();
+      loadListingRuns(listingIds);
+    }, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [run?.status, loadRun]);
+  }, [run?.status, hasRunningListing, source?.listings, loadRun, loadListingRuns]);
 
   useEffect(() => {
     if (run?.status !== "STOPPED") return;
@@ -151,7 +187,7 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
     setRun({ ...updated, logs: [] });
   }, []);
 
-  const { start, stop, pendingId, error: actionError } = useCrawlActions({
+  const { start, stop, isPending, error: actionError } = useCrawlActions({
     token,
     handleUnauthorized,
     onStarted: patchRun,
@@ -159,6 +195,116 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
     // "Stopped by user" log line — refetch once to show it instead of merging the bare CrawlRun.
     onStopped: () => loadRun(),
   });
+
+  async function handleStartListing(listingId: number) {
+    if (!token || !source) return;
+    setListingPendingIds((prev) => new Set(prev).add(listingId));
+    try {
+      const r = await startListingCrawl(source.id, listingId, token);
+      setListingRuns((prev) => ({ ...prev, [listingId]: r }));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      setLoadError("Failed to start listing crawl");
+    } finally {
+      setListingPendingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(listingId);
+        return next;
+      });
+    }
+  }
+
+  async function handleStopListing(listingId: number) {
+    if (!token || !source) return;
+    setListingPendingIds((prev) => new Set(prev).add(listingId));
+    try {
+      const r = await stopListingCrawl(source.id, listingId, token);
+      setListingRuns((prev) => ({ ...prev, [listingId]: r }));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      setLoadError("Failed to stop listing crawl");
+    } finally {
+      setListingPendingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(listingId);
+        return next;
+      });
+    }
+  }
+
+  async function handleStartAllListings() {
+    if (!token || !source) return;
+    setBulkPending(true);
+    try {
+      const toStart = source.listings.filter(
+        (listing) => listing.isActive && listingRuns[listing.id]?.status !== "RUNNING",
+      );
+      const startedRuns = await Promise.all(
+        toStart.map((listing) => startListingCrawl(source.id, listing.id, token)),
+      );
+      setListingRuns((prev) => {
+        const next = { ...prev };
+        for (const r of startedRuns) next[r.listingId as number] = r;
+        return next;
+      });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      setLoadError("Failed to start listing crawls");
+    } finally {
+      setBulkPending(false);
+    }
+  }
+
+  async function handleStopAllListings() {
+    if (!token || !source) return;
+    setBulkPending(true);
+    try {
+      const toStop = source.listings.filter((listing) => listingRuns[listing.id]?.status === "RUNNING");
+      const stoppedRuns = await Promise.all(
+        toStop.map((listing) => stopListingCrawl(source.id, listing.id, token)),
+      );
+      setListingRuns((prev) => {
+        const next = { ...prev };
+        for (const r of stoppedRuns) next[r.listingId as number] = r;
+        return next;
+      });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      setLoadError("Failed to stop listing crawls");
+    } finally {
+      setBulkPending(false);
+    }
+  }
+
+  async function handleListingActiveChange(listing: Listing, isActive: boolean) {
+    if (!token || !source) return;
+    try {
+      const updated = await updateListingActive(source.id, listing.id, isActive, token);
+      setSource((prev) =>
+        prev
+          ? { ...prev, listings: prev.listings.map((l) => (l.id === updated.id ? updated : l)) }
+          : prev,
+      );
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      setLoadError("Failed to update listing");
+    }
+  }
 
   async function handleClearData() {
     if (!token) return;
@@ -232,7 +378,8 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
     }
   }
 
-  const actionPending = pendingId === sourceId;
+  const hasListings = (source?.listings.length ?? 0) > 0;
+  const actionPending = isPending(sourceSlot(sourceId));
   const error = actionError ?? loadError;
   const pagedVacancies = (vacancies ?? []).slice(
     (vacanciesPage - 1) * VACANCIES_PAGE_SIZE,
@@ -257,7 +404,13 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>{source.name}</CardTitle>
-                  <StatusBadge status={run?.status ?? "PENDING"} />
+                  <StatusBadge
+                    status={
+                      (hasListings
+                        ? aggregateListingStatus(source.listings, listingRuns)
+                        : run?.status) ?? "PENDING"
+                    }
+                  />
                 </div>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
@@ -340,7 +493,72 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
                     {run?.startedAt ? new Date(run.startedAt).toLocaleString() : "Never"}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                {hasListings && (
+                  <div className="flex flex-col gap-1 text-sm">
+                    <p className="text-muted-foreground">
+                      This source crawls at the listing level:
+                    </p>
+                    {source.listings.map((listing) => {
+                      const listingRun = listingRuns[listing.id];
+                      return (
+                        <div
+                          key={listing.id}
+                          className="grid grid-cols-[1fr_auto_5rem] items-center gap-x-3"
+                        >
+                          <div className="flex min-w-0 items-center gap-2">
+                            <Checkbox
+                              checked={listing.isActive}
+                              onCheckedChange={(checked) =>
+                                handleListingActiveChange(listing, checked === true)
+                              }
+                              title="Active"
+                            />
+                            <Link
+                              href={`/sources/${sourceId}/listings/${listing.id}`}
+                              className="text-link hover:underline"
+                            >
+                              {listing.label}
+                            </Link>
+                          </div>
+                          <StatusBadge
+                            className="justify-self-end"
+                            status={listing.isActive ? (listingRun?.status ?? "PENDING") : "INACTIVE"}
+                          />
+                          {listingRun?.status === "RUNNING" ? (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="w-20 justify-self-end"
+                              disabled={
+                                !listing.isActive ||
+                                listingPendingIds.has(listing.id) ||
+                                clearDataPending
+                              }
+                              onClick={() => handleStopListing(listing.id)}
+                            >
+                              Stop
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="w-20 justify-self-end"
+                              disabled={
+                                !listing.isActive ||
+                                listingPendingIds.has(listing.id) ||
+                                clearDataPending
+                              }
+                              onClick={() => handleStartListing(listing.id)}
+                            >
+                              {listingRun ? "Restart" : "Start"}
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
                   <Button
                     variant="secondary"
                     size="sm"
@@ -351,13 +569,41 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
                   >
                     Clear data
                   </Button>
-                  {run?.status === "RUNNING" ? (
+                  {hasListings ? (
+                    aggregateListingStatus(source.listings, listingRuns) === "RUNNING" ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-fit"
+                        disabled={bulkPending || clearDataPending}
+                        onClick={handleStopAllListings}
+                      >
+                        Stop all
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-fit"
+                        disabled={
+                          aggregateListingStatus(source.listings, listingRuns) === "INACTIVE" ||
+                          bulkPending ||
+                          clearDataPending
+                        }
+                        onClick={handleStartAllListings}
+                      >
+                        {aggregateListingStatus(source.listings, listingRuns) === "PENDING"
+                          ? "Start all"
+                          : "Restart all"}
+                      </Button>
+                    )
+                  ) : run?.status === "RUNNING" ? (
                     <Button
                       variant="secondary"
                       size="sm"
                       className="w-fit"
                       disabled={actionPending || clearDataPending}
-                      onClick={() => stop(sourceId)}
+                      onClick={() => stop(sourceSlot(sourceId))}
                     >
                       Stop
                     </Button>
@@ -367,7 +613,7 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
                       size="sm"
                       className="w-fit"
                       disabled={actionPending || clearDataPending}
-                      onClick={() => start(sourceId)}
+                      onClick={() => start(sourceSlot(sourceId))}
                     >
                       {run ? "Restart" : "Start"}
                     </Button>

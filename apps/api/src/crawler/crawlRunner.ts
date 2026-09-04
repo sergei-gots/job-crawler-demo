@@ -1,4 +1,4 @@
-import type { CrawlRun, CrawlSource } from "@prisma/client";
+import type { CrawlListing, CrawlRun, CrawlSource } from "@prisma/client";
 import { getStrategy } from "./index.js";
 import { prisma } from "../config/prisma.js";
 import { logger } from "../config/logger.js";
@@ -8,26 +8,36 @@ interface RunState {
   cancelled: boolean;
 }
 
-// Keyed by sourceId, not runId — crawling is per-source and at most one run is active per
-// source at a time (see reserveCrawlSlot).
-const activeRuns = new Map<number, RunState>();
+/**
+ * A source without listings crawls as one unit, so its slot key is just its sourceId. A source
+ * with listings (see .claude/features/09_FEATURE_CRAWL_LISTINGS.md) crawls at the listing level,
+ * so each listing gets its own independent slot — otherwise crawling one WeWorkRemotely listing
+ * would block starting another, which is not how they're related.
+ */
+function slotKeyFor(sourceId: number, listingId: number | null): number | string {
+  return listingId ?? sourceId;
+}
 
-export function isSourceCrawling(sourceId: number): boolean {
-  return activeRuns.has(sourceId);
+// Keyed by slotKeyFor(sourceId, listingId), not runId — at most one run is active per slot at a
+// time (see reserveCrawlSlot).
+const activeRuns = new Map<number | string, RunState>();
+
+export function isSlotCrawling(sourceId: number, listingId: number | null = null): boolean {
+  return activeRuns.has(slotKeyFor(sourceId, listingId));
 }
 
 /**
- * Reserves the concurrency slot for a source synchronously (no `await` between the caller's
- * `isSourceCrawling` check and this call), so two near-simultaneous crawl requests for the same
- * source can't both pass the check — Node's single-threaded event loop makes the pair atomic.
- * Callers must `releaseCrawlSlot` if they fail before reaching `executeCrawlRun`.
+ * Reserves the concurrency slot synchronously (no `await` between the caller's `isSlotCrawling`
+ * check and this call), so two near-simultaneous crawl requests for the same slot can't both pass
+ * the check — Node's single-threaded event loop makes the pair atomic. Callers must
+ * `releaseCrawlSlot` if they fail before reaching `executeCrawlRun`.
  */
-export function reserveCrawlSlot(sourceId: number): void {
-  activeRuns.set(sourceId, { cancelled: false });
+export function reserveCrawlSlot(sourceId: number, listingId: number | null = null): void {
+  activeRuns.set(slotKeyFor(sourceId, listingId), { cancelled: false });
 }
 
-export function releaseCrawlSlot(sourceId: number): void {
-  activeRuns.delete(sourceId);
+export function releaseCrawlSlot(sourceId: number, listingId: number | null = null): void {
+  activeRuns.delete(slotKeyFor(sourceId, listingId));
 }
 
 /**
@@ -40,13 +50,17 @@ export function releaseCrawlSlot(sourceId: number): void {
  * destructive delete) rather than silently continuing, which would just narrow the exact race
  * this function exists to close instead of actually closing it.
  */
-export async function waitUntilNotCrawling(sourceId: number, timeoutMs = 5000): Promise<boolean> {
+export async function waitUntilNotCrawling(
+  sourceId: number,
+  listingId: number | null = null,
+  timeoutMs = 5000,
+): Promise<boolean> {
   const pollIntervalMs = 100;
   const deadline = Date.now() + timeoutMs;
-  while (isSourceCrawling(sourceId) && Date.now() < deadline) {
+  while (isSlotCrawling(sourceId, listingId) && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
   }
-  return !isSourceCrawling(sourceId);
+  return !isSlotCrawling(sourceId, listingId);
 }
 
 async function logInfo(runId: number, message: string): Promise<void> {
@@ -63,11 +77,16 @@ async function logError(runId: number, message: string): Promise<void> {
 
 /**
  * Executes a crawl run to completion. The caller must have already created the `CrawlRun` row
- * and reserved the source's concurrency slot via `reserveCrawlSlot` (see
- * `sources.service.ts`'s `startSourceCrawl`) before calling this, fire-and-forget.
+ * and reserved the slot via `reserveCrawlSlot` (see `sources.service.ts`'s `startSourceCrawl`/
+ * `startListingCrawl`) before calling this, fire-and-forget. `listing` is `null` for sources
+ * without listings (crawl exactly as before); passed through to the strategy otherwise.
  */
-export async function executeCrawlRun(run: CrawlRun, source: CrawlSource): Promise<void> {
-  const runState = activeRuns.get(source.id);
+export async function executeCrawlRun(
+  run: CrawlRun,
+  source: CrawlSource,
+  listing: CrawlListing | null = null,
+): Promise<void> {
+  const runState = activeRuns.get(slotKeyFor(source.id, listing?.id ?? null));
   if (!runState) {
     // Defensive: every caller must reserve the slot first. Logging (not throwing) here since
     // this runs unawaited — an uncaught throw would just become an "unhandled rejection" log.
@@ -91,7 +110,7 @@ export async function executeCrawlRun(run: CrawlRun, source: CrawlSource): Promi
     if (!strategy) {
       await logWarn(run.id, `crawling not yet implemented for ${source.name}`);
     } else {
-      const { vacancies, pageLogs } = await strategy.crawl(source);
+      const { vacancies, pageLogs } = await strategy.crawl(source, listing);
       for (const line of pageLogs) {
         await logInfo(run.id, line);
       }
@@ -99,7 +118,7 @@ export async function executeCrawlRun(run: CrawlRun, source: CrawlSource): Promi
       let upsertedCount = 0;
       for (const vacancy of vacancies) {
         if (runState.cancelled) break;
-        await upsertVacancy(vacancy);
+        await upsertVacancy(vacancy, listing?.id ?? null);
         upsertedCount += 1;
       }
       vacanciesFound = upsertedCount;
@@ -120,6 +139,7 @@ export async function executeCrawlRun(run: CrawlRun, source: CrawlSource): Promi
         );
         const { enrichedCount } = await strategy.enrichDetails(
           source,
+          listing,
           vacancies,
           () => runState.cancelled,
           (message, level) => {
@@ -144,10 +164,10 @@ export async function executeCrawlRun(run: CrawlRun, source: CrawlSource): Promi
     // Always releases the slot, however this run ends — including if it threw before reaching
     // here (e.g. the very first `logInfo` call above failing with a FK violation because its
     // CrawlRun row was deleted mid-flight). Previously this delete sat *after* the try/catch as
-    // a plain statement, so any such early throw skipped it entirely and left the source
-    // permanently marked as "crawling" (`isSourceCrawling` stuck `true`) until process restart —
+    // a plain statement, so any such early throw skipped it entirely and left the slot
+    // permanently marked as "crawling" (`isSlotCrawling` stuck `true`) until process restart —
     // reproduced live via a race between a running crawl and a concurrent clear-data call.
-    activeRuns.delete(source.id);
+    activeRuns.delete(slotKeyFor(source.id, listing?.id ?? null));
   }
 
   // If stopped by the user mid-run, stopCrawlRun already flipped RUNNING -> STOPPED and wrote its
@@ -171,15 +191,15 @@ export async function executeCrawlRun(run: CrawlRun, source: CrawlSource): Promi
 }
 
 /**
- * Signals cancellation only — deliberately does NOT release the source's concurrency slot here.
- * `executeCrawlRun` is still running in the background at this point (it only checks `cancelled`
- * between iterations, not instantly), so `isSourceCrawling` must keep reporting `true` until that
- * background task actually finishes and releases the slot itself. Releasing it here instead would
- * let a new crawl (or a `clearSourceData` delete) start concurrently with the still-finishing old
- * run — exactly the race this function exists to prevent.
+ * Signals cancellation only — deliberately does NOT release the slot here. `executeCrawlRun` is
+ * still running in the background at this point (it only checks `cancelled` between iterations,
+ * not instantly), so `isSlotCrawling` must keep reporting `true` until that background task
+ * actually finishes and releases the slot itself. Releasing it here instead would let a new crawl
+ * (or a `clearSourceData` delete) start concurrently with the still-finishing old run — exactly
+ * the race this function exists to prevent.
  */
-export function stopCrawlRun(sourceId: number): void {
-  const runState = activeRuns.get(sourceId);
+export function stopCrawlRun(sourceId: number, listingId: number | null = null): void {
+  const runState = activeRuns.get(slotKeyFor(sourceId, listingId));
   if (!runState) return;
   runState.cancelled = true;
 }

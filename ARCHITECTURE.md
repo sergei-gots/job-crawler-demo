@@ -69,7 +69,7 @@
 
 | Store          | Owns                                                                |
 |----------------|----------------------------------------------------------------------|
-| PostgreSQL     | `User`, `CrawlSource`, `CrawlRun`, `CrawlLog` (relational, source of truth) |
+| PostgreSQL     | `User`, `CrawlSource`, `CrawlListing`, `CrawlRun`, `CrawlLog` (relational, source of truth) |
 | Elasticsearch  | `CrawlerResult` (crawled + eventually AI-enriched vacancies, search index) |
 | Redis          | Rate-limit counters (per source), short-TTL raw-page cache            |
 
@@ -110,21 +110,41 @@ respects) are manually researched and documented per source in the `data-sources
 source's feature doc instead — real, checkable facts, not a boolean that implied an enforcement
 mechanism which doesn't exist in code.
 
-### CrawlRun (PostgreSQL)
-| Field          | Type                       | Notes                                        |
-|----------------|----------------------------|------------------------------------------------|
-| id             | int (PK)                   | autoincrement                                  |
-| sourceId       | int (FK → CrawlSource.id)  | which source this run crawled                  |
-| status         | enum                       | `PENDING`,`RUNNING`,`COMPLETED`,`FAILED`,`STOPPED` |
-| vacanciesFound | int                        | default `0`; count from the listing pass       |
-| startedAt      | timestamp \| null          |                                                 |
-| finishedAt     | timestamp \| null          |                                                 |
-| createdAt      | timestamp                  |                                                 |
-| updatedAt      | timestamp                  |                                                 |
+### CrawlListing (PostgreSQL, Increment 9)
+| Field     | Type                       | Notes                                                |
+|-----------|----------------------------|-------------------------------------------------------|
+| id        | int (PK)                   | autoincrement                                          |
+| sourceId  | int (FK → CrawlSource.id)  | cascade-deletes with its source                        |
+| label     | string                     | e.g. "Full-Stack"; seeded, not user-editable            |
+| subPath   | string                     | e.g. "/categories/remote-full-stack-programming-jobs"; resolved against the parent source's `baseUrl` at crawl time, not stored as an absolute URL |
+| isActive  | boolean                    | default `true`; user-editable via `PATCH /sources/:id/listings/:listingId` (immediate-apply checkbox, no Save button) |
+| createdAt | timestamp                  |                                                         |
+| updatedAt | timestamp                  |                                                         |
 
-At most one non-finished (`RUNNING`) `CrawlRun` per `sourceId` at a time — enforced by a
+A named, independently-crawlable sub-target of a source — additive, not a forced 1-per-source
+minimum: most sources (`Habr Career`, `RemoteOK`, `Craigslist`) have none and crawl exactly as
+before. `WeWorkRemotely` requires one (its strategy throws if crawled with `listing: null`) —
+see `.claude/features/09_FEATURE_CRAWL_LISTINGS.md`. `@@unique([sourceId, subPath])`.
+
+### CrawlRun (PostgreSQL)
+| Field          | Type                          | Notes                                        |
+|----------------|-------------------------------|------------------------------------------------|
+| id             | int (PK)                      | autoincrement                                  |
+| sourceId       | int (FK → CrawlSource.id)     | which source this run crawled                  |
+| listingId      | int \| null (FK → CrawlListing.id) | set for a listing-scoped run (Increment 9), `null` for a source-level one; cascade-deletes with its `CrawlListing` |
+| status         | enum                          | `PENDING`,`RUNNING`,`COMPLETED`,`FAILED`,`STOPPED` |
+| vacanciesFound | int                           | default `0`; count from the listing pass       |
+| startedAt      | timestamp \| null             |                                                 |
+| finishedAt     | timestamp \| null             |                                                 |
+| createdAt      | timestamp                     |                                                 |
+| updatedAt      | timestamp                     |                                                 |
+
+At most one non-finished (`RUNNING`) `CrawlRun` per **concurrency slot** at a time — enforced by a
 status-conditioned write plus an in-process cancellation map, the same pattern the removed
-`CrawlerJob` used to enforce per-job.
+`CrawlerJob` used to enforce per-job. A slot is `listingId ?? sourceId` (Increment 9's
+`slotKeyFor` in `crawlRunner.ts`): a source without listings has one slot (its `sourceId`); a
+source with listings has one independent slot per listing, so different listings of the same
+source can crawl concurrently.
 
 ### CrawlerResult (Elasticsearch, index `crawler_results`)
 | Field          | Type          | Notes                                                |
@@ -169,11 +189,14 @@ they'll be added as part of the increment that actually builds `AIEnricher`.
   short human-readable summary of how the strategy actually fetches data, surfaced via the API as
   `strategyDescription` — see the CrawlSource table note above), a required `steps:
   StrategyStep[]` (the traceable chain of what was tried/broke/fixed, surfaced as
-  `strategySteps` — see `.claude/features/07_FEATURE_STRATEGY_DIAGRAMS.md`) plus `crawl(source):
-  Promise<CrawlResult>` and an optional `enrichDetails(source, vacancies, isCancelled,
-  logProgress): Promise<EnrichDetailsResult>` for sources that support a second, per-vacancy
-  detail-page pass. Chosen per source via `getStrategy(source)`, which dispatches purely on
-  `CrawlSource.name` — not configurable per run. Strategy files are named after the site they
+  `strategySteps` — see `.claude/features/07_FEATURE_STRATEGY_DIAGRAMS.md`) plus `crawl(source,
+  listing): Promise<CrawlResult>` and an optional `enrichDetails(source, listing, vacancies,
+  isCancelled, logProgress): Promise<EnrichDetailsResult>` for sources that support a second,
+  per-vacancy detail-page pass. `listing: CrawlListing | null` (Increment 9) is the specific
+  `CrawlListing` sub-target being crawled, `null` for sources without any — `habrCareerStrategy`/
+  `remoteOkStrategy` ignore it, `weWorkRemotelyStrategy` requires it non-null. Chosen per source
+  via `getStrategy(source)`, which dispatches purely on `CrawlSource.name` — not configurable per
+  run. Strategy files are named after the site they
   crawl, not the fetch/parse library, since a strategy is 1:1 with a source and the library is an
   implementation detail: `habrCareerStrategy.ts` (Axios+Cheerio throughout — `habr_career`'s
   listing and detail pages are both server-rendered), `remoteOkStrategy.ts` (Puppeteer, listing

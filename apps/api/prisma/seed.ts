@@ -38,12 +38,42 @@ const sources: {
   },
 ];
 
+// Named, independently-crawlable sub-targets within a source (see .claude/features/
+// 09_FEATURE_CRAWL_LISTINGS.md) — additive only, most sources have none. subPath is resolved
+// against the parent source's baseUrl by weWorkRemotelyStrategy.ts, not stored as an absolute
+// URL, so the same seed entry still works if baseUrl ever changes. Each entry's HTML listing and
+// matching .rss feed are live-verified before being added here, per this project's standing rule
+// of never seeding an unverified selector/URL.
+const listings: { sourceName: string; label: string; subPath: string }[] = [
+  {
+    sourceName: "WeWorkRemotely",
+    label: "Full-Stack",
+    subPath: "/categories/remote-full-stack-programming-jobs",
+  },
+  {
+    sourceName: "WeWorkRemotely",
+    label: "Backend",
+    subPath: "/categories/remote-back-end-programming-jobs",
+  },
+];
+
 async function main() {
   for (const source of sources) {
     await prisma.crawlSource.upsert({
       where: { name: source.name },
       update: source,
       create: source,
+    });
+  }
+
+  for (const listing of listings) {
+    const source = await prisma.crawlSource.findUniqueOrThrow({
+      where: { name: listing.sourceName },
+    });
+    await prisma.crawlListing.upsert({
+      where: { sourceId_subPath: { sourceId: source.id, subPath: listing.subPath } },
+      update: { label: listing.label },
+      create: { sourceId: source.id, label: listing.label, subPath: listing.subPath },
     });
   }
 }

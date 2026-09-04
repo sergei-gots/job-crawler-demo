@@ -1,17 +1,36 @@
 import type { Request, Response } from "express";
 import { handleError } from "../utils/errors.js";
-import { updateSourceSettingsSchema } from "./sources.schemas.js";
+import { updateListingActiveSchema, updateSourceSettingsSchema } from "./sources.schemas.js";
 import {
   clearSourceData,
+  getListingRun,
+  getListingVacancies,
   getSourceByIdWithStrategyInfo,
   getSourceRun,
   getSourceVacancies,
   listSources,
   startAllSourcesCrawl,
+  startListingCrawl,
   startSourceCrawl,
+  stopListingCrawl,
   stopSourceCrawl,
+  updateListingActive,
   updateSourceSettings,
 } from "./sources.service.js";
+
+/** Parses and validates the `:id`/`:listingId` route params shared by every listing route. */
+function parseListingParams(
+  req: Request,
+  res: Response,
+): { sourceId: number; listingId: number } | null {
+  const sourceId = Number(req.params.id);
+  const listingId = Number(req.params.listingId);
+  if (!Number.isInteger(sourceId) || !Number.isInteger(listingId)) {
+    res.status(400).json({ error: "Invalid source or listing id" });
+    return null;
+  }
+  return { sourceId, listingId };
+}
 
 export async function getSources(_req: Request, res: Response): Promise<void> {
   try {
@@ -137,6 +156,72 @@ export async function postCrawlAll(_req: Request, res: Response): Promise<void> 
   try {
     const runs = await startAllSourcesCrawl();
     res.status(200).json({ runs });
+  } catch (error) {
+    handleError(res, error, "sources");
+  }
+}
+
+export async function postListingCrawl(req: Request, res: Response): Promise<void> {
+  const params = parseListingParams(req, res);
+  if (!params) return;
+
+  try {
+    const run = await startListingCrawl(params.sourceId, params.listingId);
+    res.status(200).json({ run });
+  } catch (error) {
+    handleError(res, error, "sources");
+  }
+}
+
+export async function postListingCrawlStop(req: Request, res: Response): Promise<void> {
+  const params = parseListingParams(req, res);
+  if (!params) return;
+
+  try {
+    const run = await stopListingCrawl(params.sourceId, params.listingId);
+    res.status(200).json({ run });
+  } catch (error) {
+    handleError(res, error, "sources");
+  }
+}
+
+export async function getListingRunHandler(req: Request, res: Response): Promise<void> {
+  const params = parseListingParams(req, res);
+  if (!params) return;
+
+  try {
+    const run = await getListingRun(params.sourceId, params.listingId);
+    res.status(200).json({ run });
+  } catch (error) {
+    handleError(res, error, "sources");
+  }
+}
+
+export async function getListingVacanciesHandler(req: Request, res: Response): Promise<void> {
+  const params = parseListingParams(req, res);
+  if (!params) return;
+
+  try {
+    const vacancies = await getListingVacancies(params.sourceId, params.listingId);
+    res.status(200).json({ vacancies });
+  } catch (error) {
+    handleError(res, error, "sources");
+  }
+}
+
+export async function patchListing(req: Request, res: Response): Promise<void> {
+  const params = parseListingParams(req, res);
+  if (!params) return;
+
+  const parsed = updateListingActiveSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
+    return;
+  }
+
+  try {
+    const listing = await updateListingActive(params.sourceId, params.listingId, parsed.data.isActive);
+    res.status(200).json({ listing });
   } catch (error) {
     handleError(res, error, "sources");
   }

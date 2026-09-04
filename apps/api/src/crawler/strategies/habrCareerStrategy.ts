@@ -1,6 +1,6 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
-import type { CrawlSource } from "@prisma/client";
+import type { CrawlListing, CrawlSource } from "@prisma/client";
 import { getOrFetch } from "../pageCache.js";
 import { htmlToText } from "../htmlToText.js";
 import { waitForSlot } from "../rateLimiter.js";
@@ -190,7 +190,10 @@ export const habrCareerStrategy: CrawlStrategy = {
   // vacancies (real end of results) - not a fixed page count. habr_career is the only seeded
   // source with genuine page-based pagination, so it's also the only strategy that needs to stop
   // requesting further pages early once the cap is hit, rather than just truncating afterward.
-  async crawl(source: CrawlSource): Promise<CrawlResult> {
+  // habr_career is not seeded with any CrawlListing rows, so _listing is always null here - the
+  // parameter exists only because CrawlStrategy's signature is shared with strategies that do use
+  // listings (weWorkRemotelyStrategy).
+  async crawl(source: CrawlSource, _listing: CrawlListing | null): Promise<CrawlResult> {
     const vacancies: RawVacancy[] = [];
     const pageLogs: string[] = [];
 
@@ -237,6 +240,7 @@ export const habrCareerStrategy: CrawlStrategy = {
   // politeness takes priority over run speed for this project.
   async enrichDetails(
     source: CrawlSource,
+    _listing: CrawlListing | null,
     vacancies: RawVacancy[],
     isCancelled: () => boolean,
     logProgress: LogProgress,

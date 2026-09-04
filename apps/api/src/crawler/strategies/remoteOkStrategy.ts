@@ -1,6 +1,6 @@
 import puppeteer from "puppeteer";
 import * as cheerio from "cheerio";
-import type { CrawlSource } from "@prisma/client";
+import type { CrawlListing, CrawlSource } from "@prisma/client";
 import { getOrFetch } from "../pageCache.js";
 import { htmlToText } from "../htmlToText.js";
 import { waitForSlot } from "../rateLimiter.js";
@@ -157,7 +157,10 @@ export const remoteOkStrategy: CrawlStrategy = {
     },
   ],
 
-  async crawl(source: CrawlSource): Promise<CrawlResult> {
+  // RemoteOK is not seeded with any CrawlListing rows, so _listing is always null here - the
+  // parameter exists only because CrawlStrategy's signature is shared with strategies that do use
+  // listings (weWorkRemotelyStrategy).
+  async crawl(source: CrawlSource, _listing: CrawlListing | null): Promise<CrawlResult> {
     const pageUrl = new URL(LISTING_PATH, source.baseUrl).toString();
 
     const { html, cacheHit } = await getOrFetch(source.id, pageUrl, async () => {
