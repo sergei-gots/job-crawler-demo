@@ -32,7 +32,7 @@ export async function updateSourceSettings(
   input: UpdateSourceSettingsInput,
 ): Promise<CrawlSource> {
   const source = await getSourceById(id);
-  if (!source.supportsPageLimit) {
+  if (input.maxPagesToCrawl !== undefined && !source.supportsPageLimit) {
     throw new ApiError(
       400,
       `${source.name}'s listing has no real pagination, so maxPagesToCrawl has no effect for it`,
@@ -40,7 +40,10 @@ export async function updateSourceSettings(
   }
   return prisma.crawlSource.update({
     where: { id },
-    data: { maxPagesToCrawl: input.maxPagesToCrawl },
+    data: {
+      ...(input.maxPagesToCrawl !== undefined && { maxPagesToCrawl: input.maxPagesToCrawl }),
+      ...(input.defaultDelayMs !== undefined && { defaultDelayMs: input.defaultDelayMs }),
+    },
   });
 }
 
