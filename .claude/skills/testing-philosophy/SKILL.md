@@ -8,7 +8,9 @@ description: Use when testing a change, verifying a feature works, or about to m
 - Primary testing method: **Manual testing** through the browser.
 - The developer will manually check the web interface, user flows, and visual appearance.
 - Do not use Claude Chrome Extension or any browser automation tools for regular development and testing unless explicitly requested.
-- Automated tests (if any) will be added later for critical paths and regression.
+- Automated tests exist for `apps/api`'s crawler/search logic (Vitest — run with `npm run test`
+  inside `apps/api`, e.g. `apps/api/src/search/suggestVacancies.test.ts`); expand them for
+  critical paths and regressions as the codebase grows.
 
 **Manual Testing Goals:**
 

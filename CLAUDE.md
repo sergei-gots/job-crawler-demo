@@ -68,11 +68,6 @@ loads it when touching crawler strategies or discussing a source's specifics.
 ## Coding Standards
 
 - Strict TypeScript usage (interfaces/types instead of `any`)
-- Clean, modular, and extensible architecture
-- Proper error handling and logging
-- Async/await everywhere
-- ESLint + Prettier
-- Clear comments for complex logic
 
 ### Architecture methodologies (important — two different worlds)
 
@@ -204,8 +199,9 @@ styling) is in the `ui-design-guidelines` skill
 
 ## Testing Philosophy
 
-- Primary testing method: **manual testing** through the browser; automated tests (if any) are
-  added later for critical paths and regression.
+- Primary testing method: **manual testing** through the browser. Automated tests exist for
+  `apps/api`'s crawler/search logic (Vitest — run with `npm run test` inside `apps/api`); expand
+  them for critical paths and regressions as the codebase grows.
 - Full testing goals, the "before marking Done" checklist requirement, and the browser-automation
   policy are in the `testing-philosophy` skill
   ([`.claude/skills/testing-philosophy/SKILL.md`](.claude/skills/testing-philosophy/SKILL.md)).
