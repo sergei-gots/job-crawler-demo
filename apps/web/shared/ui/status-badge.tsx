@@ -6,6 +6,9 @@ const STATUS_STYLES: Record<string, string> = {
   COMPLETED: "border-border text-foreground",
   FAILED: "border-destructive text-destructive",
   STOPPED: "border-border text-muted-foreground",
+  // Not a real CrawlRun status — shown instead of a run status for an inactive listing/source
+  // (see entities/source's DisplayStatus), same neutral/no-fill treatment as PENDING.
+  INACTIVE: "border-border text-muted-foreground",
 };
 
 // PENDING has no icon (nothing has happened yet). RUNNING gets an animated spinner instead of a
@@ -16,13 +19,14 @@ const STATUS_ICONS: Partial<Record<string, string>> = {
   FAILED: "❌",
 };
 
-export function StatusBadge({ status }: { status: string }) {
+export function StatusBadge({ status, className }: { status: string; className?: string }) {
   const icon = STATUS_ICONS[status];
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-medium",
         STATUS_STYLES[status] ?? "border-border text-foreground",
+        className,
       )}
     >
       {status}

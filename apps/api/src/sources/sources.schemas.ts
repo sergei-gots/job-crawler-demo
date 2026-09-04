@@ -26,3 +26,9 @@ export const updateSourceSettingsSchema = z
   });
 
 export type UpdateSourceSettingsInput = z.infer<typeof updateSourceSettingsSchema>;
+
+export const updateListingActiveSchema = z.object({
+  isActive: z.boolean(),
+});
+
+export type UpdateListingActiveInput = z.infer<typeof updateListingActiveSchema>;

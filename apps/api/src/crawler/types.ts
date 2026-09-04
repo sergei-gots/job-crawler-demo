@@ -1,4 +1,4 @@
-import type { CrawlSource } from "@prisma/client";
+import type { CrawlListing, CrawlSource } from "@prisma/client";
 
 export interface RawVacancy {
   externalId: string;
@@ -67,7 +67,13 @@ export interface CrawlStrategy {
    * in the same file, often the same edit.
    */
   steps: StrategyStep[];
-  crawl(source: CrawlSource): Promise<CrawlResult>;
+  /**
+   * `listing` is the specific sub-target being crawled, for sources that have any (see
+   * `.claude/features/09_FEATURE_CRAWL_LISTINGS.md`) — `null` for sources without listings,
+   * which crawl exactly as before. Strategies that don't use listings (habr, RemoteOK) simply
+   * ignore the parameter; `weWorkRemotelyStrategy` requires a non-null one.
+   */
+  crawl(source: CrawlSource, listing: CrawlListing | null): Promise<CrawlResult>;
   /**
    * Optional: fetches each vacancy's own detail page for richer fields (description, location,
    * etc.). Sources without a detail-crawl implementation simply omit this method. `logProgress`
@@ -76,6 +82,7 @@ export interface CrawlStrategy {
    */
   enrichDetails?(
     source: CrawlSource,
+    listing: CrawlListing | null,
     vacancies: RawVacancy[],
     isCancelled: () => boolean,
     logProgress: LogProgress,

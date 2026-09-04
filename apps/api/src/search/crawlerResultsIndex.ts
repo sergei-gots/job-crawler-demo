@@ -12,9 +12,13 @@ export const CRAWLER_RESULTS_INDEX = "crawler_results";
  * History: v1 = original mapping; v2 = added `company.keyword`/`location.keyword` sub-fields and
  * the `specialization`/`seniority` keyword fields (Increment 3b faceted search); v3 = added
  * `title.suggest`/`company.suggest` (lowercase-normalized keyword sub-fields) for the Increment 3c
- * autocomplete suggestions endpoint.
+ * autocomplete suggestions endpoint; v4 = added `listingId` (Increment 9) — best-effort, not part
+ * of the dedup key (`sourceId:externalId` stays source-wide, see CrawlListing decisions in
+ * `.claude/features/09_FEATURE_CRAWL_LISTINGS.md`): records whichever listing most recently
+ * upserted this vacancy, so a posting that appears in two listings shows under whichever crawled
+ * it last, not both.
  */
-export const CRAWLER_RESULTS_SCHEMA_VERSION = 3;
+export const CRAWLER_RESULTS_SCHEMA_VERSION = 4;
 
 export interface CrawlerResultDoc {
   sourceId: number;
@@ -31,6 +35,9 @@ export interface CrawlerResultDoc {
   skillsSummary?: string | null;
   specialization?: string | null;
   seniority?: string | null;
+  /** Best-effort: which CrawlListing most recently upserted this vacancy; null for sources/runs
+   * without a listing. Not part of the dedup key — see schema version history above. */
+  listingId?: number | null;
 }
 
 let indexEnsured = false;
@@ -79,6 +86,7 @@ const CRAWLER_RESULTS_PROPERTIES = {
   skillsSummary: { type: "text" as const },
   specialization: { type: "keyword" as const },
   seniority: { type: "keyword" as const },
+  listingId: { type: "integer" as const },
 };
 
 async function createCrawlerResultsIndex(): Promise<void> {

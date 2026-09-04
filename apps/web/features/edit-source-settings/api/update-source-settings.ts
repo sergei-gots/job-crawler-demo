@@ -1,5 +1,5 @@
 import { patchJson } from "@/shared/lib/api";
-import type { Source } from "@/entities/source";
+import type { Listing, Source } from "@/entities/source";
 
 export async function updateSourceMaxVacanciesToCrawl(
   sourceId: number,
@@ -25,4 +25,19 @@ export async function updateSourceDelayMs(
     token,
   );
   return res.source;
+}
+
+/** Immediate-apply (no Save button) — a checkbox toggle is a single deliberate action. */
+export async function updateListingActive(
+  sourceId: number,
+  listingId: number,
+  isActive: boolean,
+  token: string,
+): Promise<Listing> {
+  const res = await patchJson<{ listing: Listing }>(
+    `/sources/${sourceId}/listings/${listingId}`,
+    { isActive },
+    token,
+  );
+  return res.listing;
 }

@@ -1,7 +1,7 @@
 import axios from "axios";
 import puppeteer, { type Browser } from "puppeteer";
 import * as cheerio from "cheerio";
-import type { CrawlSource } from "@prisma/client";
+import type { CrawlListing, CrawlSource } from "@prisma/client";
 import { getOrFetch } from "../pageCache.js";
 import { htmlToText } from "../htmlToText.js";
 import { waitForSlot } from "../rateLimiter.js";
@@ -18,14 +18,20 @@ const USER_AGENT =
 const NAVIGATION_TIMEOUT_MS = 30_000;
 const REQUEST_TIMEOUT_MS = 20_000;
 
-// The category slug that actually resolves (confirmed live 2026-09-04) - the shorter
-// "remote-programming-jobs" slug 301-redirects to this one.
-const LISTING_PATH = "/categories/remote-full-stack-programming-jobs";
-
-// The RSS feed for the SAME category as LISTING_PATH (confirmed live: both return the identical
-// 120 jobs, 1:1 slug-for-slug) - deliberately not the site-wide /remote-jobs.rss feed, which would
-// only partially overlap with what crawl() actually listed.
-const RSS_PATH = "/categories/remote-full-stack-programming-jobs.rss";
+/**
+ * The target listing URL, built from the CrawlListing's subPath (see .claude/features/
+ * 09_FEATURE_CRAWL_LISTINGS.md) rather than a hardcoded constant - this strategy requires a
+ * listing (unlike habr/RemoteOK, which aren't seeded with any and ignore the parameter). The RSS
+ * feed for a WeWorkRemotely category mirrors its HTML listing 1:1 by slug (confirmed live) and is
+ * always that same URL with ".rss" appended - deliberately not the site-wide /remote-jobs.rss
+ * feed, which would only partially overlap with what crawl() actually listed.
+ */
+function listingUrl(source: CrawlSource, listing: CrawlListing | null): string {
+  if (!listing) {
+    throw new Error("weWorkRemotelyStrategy requires a CrawlListing - none was provided");
+  }
+  return new URL(listing.subPath, source.baseUrl).toString();
+}
 
 async function fetchViaBrowser(browser: Browser, url: string): Promise<string> {
   const page = await browser.newPage();
@@ -147,7 +153,7 @@ export function parseWeWorkRemotelyRssFeed(xml: string): Map<string, Partial<Raw
  *
  * No real listing pagination exists: `?page=2` on the category URL was confirmed live to return
  * byte-for-byte the same rows as `?page=1` (same finding as RemoteOK's `?page=2` spike), so
- * crawl() fetches LISTING_PATH exactly once and relies on `applyVacancyCap` for volume control,
+ * crawl() fetches the listing exactly once and relies on `applyVacancyCap` for volume control,
  * rather than looping over `source.maxVacanciesToCrawl`-many pages the way habr does.
  *
  * Consequence: `maxVacanciesToCrawl` is a ceiling, not a guarantee, for this source. The category
@@ -235,8 +241,8 @@ export const weWorkRemotelyStrategy: CrawlStrategy = {
     },
   ],
 
-  async crawl(source: CrawlSource): Promise<CrawlResult> {
-    const pageUrl = new URL(LISTING_PATH, source.baseUrl).toString();
+  async crawl(source: CrawlSource, listing: CrawlListing | null): Promise<CrawlResult> {
+    const pageUrl = listingUrl(source, listing);
 
     const { html, cacheHit } = await getOrFetch(source.id, pageUrl, async () => {
       await waitForSlot(source.id, source.defaultDelayMs);
@@ -266,11 +272,12 @@ export const weWorkRemotelyStrategy: CrawlStrategy = {
   // case, not a parse/fetch failure.
   async enrichDetails(
     source: CrawlSource,
+    listing: CrawlListing | null,
     vacancies: RawVacancy[],
     isCancelled: () => boolean,
     logProgress: LogProgress,
   ): Promise<EnrichDetailsResult> {
-    const rssUrl = new URL(RSS_PATH, source.baseUrl).toString();
+    const rssUrl = `${listingUrl(source, listing)}.rss`;
 
     const { xml, cacheHit } = await getOrFetch(source.id, rssUrl, async () => {
       await waitForSlot(source.id, source.defaultDelayMs);
@@ -299,7 +306,7 @@ export const weWorkRemotelyStrategy: CrawlStrategy = {
         continue;
       }
 
-      await upsertVacancy({ ...vacancy, ...details });
+      await upsertVacancy({ ...vacancy, ...details }, listing?.id ?? null);
       enrichedCount += 1;
       await logProgress(`enriched vacancy ${index + 1}/${total}: ${vacancy.title}`);
     }

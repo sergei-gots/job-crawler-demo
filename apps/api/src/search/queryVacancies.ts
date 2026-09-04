@@ -38,6 +38,37 @@ export async function queryVacanciesForSource(sourceId: number): Promise<Crawler
   return result.hits.hits.map((hit) => hit._source!);
 }
 
+/**
+ * Best-effort, listing-scoped view (see `CrawlerResultDoc.listingId`'s v4 schema note): only
+ * returns vacancies whose most recent upsert was attributed to this listing. A vacancy that also
+ * appears in the source's other listings, but was last (re-)crawled by one of those instead,
+ * won't show here even though it's still part of this listing's live category — this is the
+ * accepted tradeoff of not storing a per-listing membership set, only a single "last touched by"
+ * pointer alongside the source-wide dedup key.
+ */
+export async function queryVacanciesForListing(
+  sourceId: number,
+  listingId: number,
+): Promise<CrawlerResultDoc[]> {
+  await ensureCrawlerResultsIndex();
+
+  const result = await esClient.search<CrawlerResultDoc>({
+    index: CRAWLER_RESULTS_INDEX,
+    query: {
+      bool: {
+        filter: [
+          { term: { sourceId } },
+          { term: { listingId } },
+          { range: { lastSeenAt: { gte: staleCutoffIso() } } },
+        ],
+      },
+    },
+    size: 200,
+  });
+
+  return result.hits.hits.map((hit) => hit._source!);
+}
+
 export interface VacancySearchFilters {
   q?: string;
   specialization?: string[];

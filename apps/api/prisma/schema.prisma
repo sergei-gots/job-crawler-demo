@@ -28,14 +28,35 @@ model CrawlSource {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  runs CrawlRun[]
+  runs     CrawlRun[]
+  listings CrawlListing[]
 
   @@map("crawl_sources")
+}
+
+// A named, independently-crawlable sub-target within a CrawlSource (e.g. one category of a job
+// board) - additive, not required: a source with no listings is still crawled directly at the
+// source level exactly as before. See .claude/features/09_FEATURE_CRAWL_LISTINGS.md.
+model CrawlListing {
+  id        Int         @id @default(autoincrement())
+  sourceId  Int
+  source    CrawlSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  label     String
+  subPath   String
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  runs CrawlRun[]
+
+  @@unique([sourceId, subPath])
+  @@map("crawl_listings")
 }
 
 model CrawlRun {
   id             Int         @id @default(autoincrement())
   sourceId       Int
+  listingId      Int?
   status         CrawlStatus @default(PENDING)
   vacanciesFound Int         @default(0)
   startedAt      DateTime?
@@ -43,8 +64,9 @@ model CrawlRun {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  source CrawlSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-  logs   CrawlLog[]
+  source  CrawlSource   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  listing CrawlListing? @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  logs    CrawlLog[]
 
   @@map("crawl_runs")
 }

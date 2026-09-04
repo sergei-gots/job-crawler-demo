@@ -12,6 +12,15 @@ export interface StrategyStep {
   };
 }
 
+// A named, independently-crawlable sub-target of a source (see .claude/features/
+// 09_FEATURE_CRAWL_LISTINGS.md) — additive only, most sources have none (empty Source.listings).
+export interface Listing {
+  id: number;
+  label: string;
+  subPath: string;
+  isActive: boolean;
+}
+
 export interface Source {
   id: number;
   name: string;
@@ -27,6 +36,9 @@ export interface Source {
   // CrawlStrategy.steps in apps/api. A generic 2-step fallback for a source with no implemented
   // strategy yet (never empty).
   strategySteps: StrategyStep[];
+  // Empty for sources that crawl as one unit (Habr Career, RemoteOK, Craigslist). Non-empty
+  // means this source crawls at the listing level instead — see source-detail-page.tsx.
+  listings: Listing[];
 }
 
 export async function getSources(token: string): Promise<Source[]> {

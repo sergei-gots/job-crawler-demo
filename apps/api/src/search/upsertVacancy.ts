@@ -5,9 +5,12 @@ import { esClient } from "./esClient.js";
 /**
  * Upserts by a deterministic id (`sourceId:externalId`) so a vacancy re-seen on a later crawl —
  * possibly by a different user's crawler job — updates `lastSeenAt` instead of duplicating.
- * `firstSeenAt` is only set on the initial insert.
+ * `firstSeenAt` is only set on the initial insert. `listingId` (Increment 9) is best-effort,
+ * not part of the dedup key — see `CRAWLER_RESULTS_SCHEMA_VERSION`'s v4 note: a vacancy that
+ * appears in more than one of a source's listings ends up attributed to whichever crawled it
+ * last, since the underlying record is genuinely one shared vacancy, not one per listing.
  */
-export async function upsertVacancy(raw: RawVacancy): Promise<void> {
+export async function upsertVacancy(raw: RawVacancy, listingId: number | null = null): Promise<void> {
   await ensureCrawlerResultsIndex();
 
   const id = `${raw.sourceId}:${raw.externalId}`;
@@ -35,6 +38,7 @@ export async function upsertVacancy(raw: RawVacancy): Promise<void> {
       url: raw.url,
       postedAt: raw.postedAt,
       lastSeenAt: now,
+      listingId,
       ...detailFields,
     },
     upsert: {
@@ -46,6 +50,7 @@ export async function upsertVacancy(raw: RawVacancy): Promise<void> {
       postedAt: raw.postedAt,
       firstSeenAt: now,
       lastSeenAt: now,
+      listingId,
       ...detailFields,
     },
   });
