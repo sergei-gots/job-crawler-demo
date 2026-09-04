@@ -2,11 +2,12 @@
 
 ## Project Overview
 
-**Project Name:** Job-Crawler-Demo  
-**Description:** A modular demonstration web application showcasing a modern web crawling and data processing stack, inspired by enterprise data crawling systems (e.g. SAP-style).
+**Project Name:** Job-Crawler-Demo — a demonstration crawler management console, inspired by
+enterprise data crawling systems (e.g. SAP-style). See [`README.md`](README.md) for the full
+pitch and tech-stack summary.
 
-**Goal:**  
-Create a clean, well-structured MVP that demonstrates the full tech stack: TypeScript + Node.js crawling framework with Puppeteer, Elasticsearch, Redis, AI enrichment, and user personalization.
+**Goal:** a clean, well-structured MVP demonstrating the full stack: TypeScript + Node.js crawling
+with Puppeteer, Elasticsearch, Redis, AI enrichment, and user personalization.
 
 ## Tech Stack
 
