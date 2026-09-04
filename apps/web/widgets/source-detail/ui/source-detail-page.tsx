@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { clearSourceData } from "@/features/admin-actions";
-import { updateSourceMaxPagesToCrawl, validateMaxPagesToCrawl } from "@/features/edit-source-settings";
+import {
+  updateSourceDelayMs,
+  updateSourceMaxPagesToCrawl,
+  validateDelayMs,
+  validateMaxPagesToCrawl,
+} from "@/features/edit-source-settings";
 import { useCrawlActions } from "@/features/run-crawl";
 import { useRequireAuth } from "@/entities/session";
 import {
@@ -23,10 +28,6 @@ import { StatusBadge } from "@/shared/ui/status-badge";
 
 const POLL_INTERVAL_MS = 2000;
 const VACANCIES_PAGE_SIZE = 10;
-
-function formatDelay(delayMs: number): string {
-  return `${delayMs.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} ms`;
-}
 
 function typeTooltip(type: Source["type"]): string {
   return type === "DYNAMIC"
@@ -57,6 +58,15 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
   if (source && source.maxPagesToCrawl !== lastLoadedMaxPages) {
     setLastLoadedMaxPages(source.maxPagesToCrawl);
     setMaxPagesInput(String(source.maxPagesToCrawl));
+  }
+  const [delayMsInput, setDelayMsInput] = useState("");
+  const [delayMsError, setDelayMsError] = useState<string | null>(null);
+  const [delayMsPending, setDelayMsPending] = useState(false);
+  // Same adjust-during-render sync pattern as maxPagesInput above.
+  const [lastLoadedDelayMs, setLastLoadedDelayMs] = useState<number | null>(null);
+  if (source && source.defaultDelayMs !== lastLoadedDelayMs) {
+    setLastLoadedDelayMs(source.defaultDelayMs);
+    setDelayMsInput(String(source.defaultDelayMs));
   }
 
   const toggleRawVacancy = useCallback((vacancyKey: string) => {
@@ -203,6 +213,29 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
     }
   }
 
+  async function handleSaveDelayMs() {
+    if (!token) return;
+    const parsed = Number(delayMsInput);
+    const validationError = validateDelayMs(parsed);
+    if (validationError) {
+      setDelayMsError(validationError);
+      return;
+    }
+    setDelayMsError(null);
+    setDelayMsPending(true);
+    try {
+      setSource(await updateSourceDelayMs(sourceId, parsed, token));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      setDelayMsError(err instanceof ApiError ? err.message : "Failed to save");
+    } finally {
+      setDelayMsPending(false);
+    }
+  }
+
   const actionPending = pendingId === sourceId;
   const error = actionError ?? loadError;
   const pagedVacancies = (vacancies ?? []).slice(
@@ -252,10 +285,31 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
                     <span className="text-muted-foreground">Type: </span>
                     <span title={typeTooltip(source.type)}>{source.type}</span>
                   </p>
-                  <p>
+                  <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">Rate limit: </span>
-                    {formatDelay(source.defaultDelayMs)}
-                  </p>
+                    <Input
+                      type="number"
+                      min={1000}
+                      max={20000}
+                      value={delayMsInput}
+                      onChange={(e) => {
+                        setDelayMsInput(e.target.value);
+                        setDelayMsError(null);
+                      }}
+                      className="h-7 w-24 px-2 py-1"
+                      disabled={delayMsPending}
+                    />
+                    <span className="text-muted-foreground">ms</span>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={delayMsPending || delayMsInput === String(source.defaultDelayMs)}
+                      onClick={handleSaveDelayMs}
+                    >
+                      {delayMsPending ? "Saving..." : "Save"}
+                    </Button>
+                  </div>
+                  {delayMsError && <p className="text-sm text-destructive">{delayMsError}</p>}
                   {source.supportsPageLimit ? (
                     <div className="flex items-center gap-2">
                       <span className="text-muted-foreground">Pages to crawl: </span>

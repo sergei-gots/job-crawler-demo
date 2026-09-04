@@ -13,3 +13,16 @@ export async function updateSourceMaxPagesToCrawl(
   );
   return res.source;
 }
+
+export async function updateSourceDelayMs(
+  sourceId: number,
+  defaultDelayMs: number,
+  token: string,
+): Promise<Source> {
+  const res = await patchJson<{ source: Source }>(
+    `/sources/${sourceId}`,
+    { defaultDelayMs },
+    token,
+  );
+  return res.source;
+}
