@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>We Work Remotely: Remote Full-Stack Programming Jobs</title>
+    <item>
+      <title>Samsara: Staff Software Engineer</title>
+      <region>Anywhere in the World</region>
+      <country></country>
+      <state></state>
+      <skills>Go, Python, TypeScript</skills>
+      <category>Full-Stack Programming</category>
+      <type>Full-Time</type>
+      <description>
+
+&lt;p&gt;&lt;strong&gt;About the role:&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;We are hiring a Staff Software Engineer to join our platform team.&lt;/p&gt;
+      </description>
+      <pubDate>Mon, 17 Aug 2026 13:57:14 +0000</pubDate>
+      <guid>https://weworkremotely.com/remote-jobs/samsara-staff-software-engineer</guid>
+      <link>https://weworkremotely.com/remote-jobs/samsara-staff-software-engineer</link>
+    </item>
+    <item>
+      <title>Fin: Senior Solutions Engineer- LATAM</title>
+      <region>USA Only</region>
+      <country></country>
+      <state></state>
+      <skills></skills>
+      <category>Full-Stack Programming</category>
+      <type>Full-Time</type>
+      <description>
+
+&lt;p&gt;&lt;strong&gt;Headquarters:&lt;/strong&gt; NYC, Remote&lt;/p&gt;
+&lt;p&gt;Fin is the AI Customer Agent company.&lt;/p&gt;
+      </description>
+      <pubDate>Thu, 04 Sep 2026 08:00:00 +0000</pubDate>
+      <guid>https://weworkremotely.com/remote-jobs/fin-senior-solutions-engineer-latam</guid>
+      <link>https://weworkremotely.com/remote-jobs/fin-senior-solutions-engineer-latam</link>
+    </item>
+  </channel>
+</rss>

@@ -4,8 +4,14 @@ import type { CrawlSource } from "@prisma/client";
 import { getOrFetch } from "../pageCache.js";
 import { htmlToText } from "../htmlToText.js";
 import { waitForSlot } from "../rateLimiter.js";
+import { applyVacancyCap } from "../vacancyCap.js";
 import { upsertVacancy } from "../../search/upsertVacancy.js";
 import type { CrawlResult, CrawlStrategy, EnrichDetailsResult, LogProgress, RawVacancy } from "../types.js";
+
+// Independent of source.maxVacanciesToCrawl - a hard ceiling on how many listing pages a single
+// run will ever fetch, so a misconfigured/very-high cap can't turn into an unbounded request loop
+// against the source if it genuinely has that many pages of results.
+const MAX_PAGES_SAFETY_CEILING = 20;
 
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
@@ -126,19 +132,26 @@ export function parseHabrVacancyDetail(html: string): Partial<RawVacancy> {
 
 /**
  * Handles habr_career's vacancy listing, confirmed server-rendered (no JS execution needed) via
- * a manual curl check — CrawlSource.type is seeded as STATIC accordingly. Selectors are specific
- * to habr_career's markup, not a generic HTML scraper.
+ * a manual curl check — see this strategy's `description` above. Selectors are specific to
+ * habr_career's markup, not a generic HTML scraper.
  *
  * Named after the site, not the library (axios+cheerio) — a CrawlStrategy is 1:1 with a source
  * (dispatch in crawler/index.ts is by source.name), and the technology used to fetch/parse it is
  * an implementation detail. See remoteOkStrategy.ts for the Puppeteer-based counterpart.
  */
 export const habrCareerStrategy: CrawlStrategy = {
+  description:
+    "Axios + Cheerio, two-pass (listing, then per-vacancy detail-page enrichment) — fully server-rendered, no browser needed",
+
+  // Pages are fetched until source.maxVacanciesToCrawl is reached or a page comes back with no
+  // vacancies (real end of results) - not a fixed page count. habr_career is the only seeded
+  // source with genuine page-based pagination, so it's also the only strategy that needs to stop
+  // requesting further pages early once the cap is hit, rather than just truncating afterward.
   async crawl(source: CrawlSource): Promise<CrawlResult> {
     const vacancies: RawVacancy[] = [];
     const pageLogs: string[] = [];
 
-    for (let page = 1; page <= source.maxPagesToCrawl; page += 1) {
+    for (let page = 1; page <= MAX_PAGES_SAFETY_CEILING; page += 1) {
       const pageUrl = new URL("/vacancies", source.baseUrl);
       if (page > 1) pageUrl.searchParams.set("page", String(page));
 
@@ -152,18 +165,29 @@ export const habrCareerStrategy: CrawlStrategy = {
       });
 
       const pageVacancies = parseHabrCareerPage(html, source);
+      if (pageVacancies.length === 0) {
+        pageLogs.push(`fetched page ${page} (cache: ${cacheHit ? "hit" : "miss"}, 0 vacancies) - no more results`);
+        break;
+      }
+
       vacancies.push(...pageVacancies);
       pageLogs.push(
         `fetched page ${page} (cache: ${cacheHit ? "hit" : "miss"}, ${pageVacancies.length} vacancies)`,
       );
+
+      const { vacancies: capped, truncated } = applyVacancyCap(vacancies, source.maxVacanciesToCrawl);
+      if (truncated) {
+        pageLogs.push(`reached maxVacanciesToCrawl (${source.maxVacanciesToCrawl}) - stopping early`);
+        return { vacancies: capped, pageLogs };
+      }
     }
 
     return { vacancies, pageLogs };
   },
 
-  // No cap on how many vacancies get a detail fetch — every vacancy from the listing pass is
-  // enriched, every run. The only volume bound is `source.maxPagesToCrawl` (already applied
-  // above). This was a deliberate choice: an earlier draft capped detail fetches separately,
+  // No separate cap on how many vacancies get a detail fetch — every vacancy from the listing
+  // pass is enriched, every run. The only volume bound is `source.maxVacanciesToCrawl` (already
+  // applied above, in crawl()). This was a deliberate choice: an earlier draft capped detail fetches separately,
   // but that created a "ragged data" problem (the same first-N vacancies enriched forever while
   // the rest never were). Detail requests share the listing's own rate limiter/cache, so a full
   // run can take several minutes at habr_career's seeded 12s delay — accepted, since crawling

@@ -3,6 +3,7 @@ import type { CrawlSource } from "@prisma/client";
 import { getStrategy } from "./index.js";
 import { habrCareerStrategy } from "./strategies/habrCareerStrategy.js";
 import { remoteOkStrategy } from "./strategies/remoteOkStrategy.js";
+import { weWorkRemotelyStrategy } from "./strategies/weWorkRemotelyStrategy.js";
 
 function sourceNamed(name: string): CrawlSource {
   return { name } as CrawlSource;
@@ -17,8 +18,11 @@ describe("getStrategy", () => {
     expect(getStrategy(sourceNamed("RemoteOK"))).toBe(remoteOkStrategy);
   });
 
+  it("returns the WeWorkRemotely strategy for \"WeWorkRemotely\"", () => {
+    expect(getStrategy(sourceNamed("WeWorkRemotely"))).toBe(weWorkRemotelyStrategy);
+  });
+
   it("returns null for a source with no implemented strategy", () => {
-    expect(getStrategy(sourceNamed("WeWorkRemotely"))).toBeNull();
     expect(getStrategy(sourceNamed("Craigslist"))).toBeNull();
   });
 });

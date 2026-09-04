@@ -3,7 +3,7 @@ import { handleError } from "../utils/errors.js";
 import { updateSourceSettingsSchema } from "./sources.schemas.js";
 import {
   clearSourceData,
-  getSourceById,
+  getSourceByIdWithStrategyInfo,
   getSourceRun,
   getSourceVacancies,
   listSources,
@@ -30,7 +30,7 @@ export async function getSource(req: Request, res: Response): Promise<void> {
   }
 
   try {
-    const source = await getSourceById(id);
+    const source = await getSourceByIdWithStrategyInfo(id);
     res.status(200).json({ source });
   } catch (error) {
     handleError(res, error, "sources");

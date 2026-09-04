@@ -4,6 +4,7 @@ import type { CrawlSource } from "@prisma/client";
 import { getOrFetch } from "../pageCache.js";
 import { htmlToText } from "../htmlToText.js";
 import { waitForSlot } from "../rateLimiter.js";
+import { applyVacancyCap } from "../vacancyCap.js";
 import type { CrawlResult, CrawlStrategy, RawVacancy } from "../types.js";
 
 // A real desktop Chrome UA, not Puppeteer's default and not any bot-identifying string. RemoteOK
@@ -22,8 +23,9 @@ const NAVIGATION_TIMEOUT_MS = 30_000;
  * rows per load; confirmed via a manual spike (2026-08) that `?page=2` returns the *same* 50 rows
  * (no query-string pagination on this endpoint) and that a "load more" flow only exists via an
  * AJAX endpoint (`?action=get_jobs`) that robots.txt explicitly disallows. So `crawl()` navigates
- * here exactly once per run regardless of `source.maxPagesToCrawl` — there is nothing further to
- * paginate into without violating robots.txt.
+ * here exactly once per run — there is nothing further to paginate into without violating
+ * robots.txt. `source.maxVacanciesToCrawl` is applied afterward, truncating the single parsed
+ * batch rather than bounding how many times this URL is fetched.
  */
 const LISTING_PATH = "/remote-dev-jobs";
 
@@ -110,6 +112,8 @@ export function parseListingPage(html: string, source: CrawlSource): RawVacancy[
  * at extra cost to the source.
  */
 export const remoteOkStrategy: CrawlStrategy = {
+  description: "Puppeteer (listing only — Cloudflare-gated; no detail crawl needed)",
+
   async crawl(source: CrawlSource): Promise<CrawlResult> {
     const pageUrl = new URL(LISTING_PATH, source.baseUrl).toString();
 
@@ -133,10 +137,13 @@ export const remoteOkStrategy: CrawlStrategy = {
       }
     });
 
-    const vacancies = parseListingPage(html, source);
-    return {
-      vacancies,
-      pageLogs: [`fetched listing (cache: ${cacheHit ? "hit" : "miss"}, ${vacancies.length} vacancies)`],
-    };
+    const parsed = parseListingPage(html, source);
+    const { vacancies, truncated } = applyVacancyCap(parsed, source.maxVacanciesToCrawl);
+    const pageLogs = [`fetched listing (cache: ${cacheHit ? "hit" : "miss"}, ${parsed.length} vacancies)`];
+    if (truncated) {
+      pageLogs.push(`reached maxVacanciesToCrawl (${source.maxVacanciesToCrawl}) - truncated`);
+    }
+
+    return { vacancies, pageLogs };
   },
 };

@@ -14,7 +14,8 @@ with Puppeteer, Elasticsearch, Redis, AI enrichment, and user personalization.
 ### Backend (`apps/api`)
 
 - **TypeScript + Node.js + Express** — Core backend and REST API
-- **Puppeteer** — Crawling JavaScript-rendered pages (chosen per source, via `CrawlSource.type`)
+- **Puppeteer** — Crawling JavaScript-rendered pages (chosen per source, hardcoded in that
+  source's own `CrawlStrategy` module — see Data Sources below)
 - **Axios + Cheerio** — Fast static page crawling
 - **PostgreSQL** — Store users, crawl runs, crawl logs, settings
 - **Redis** — Rate limiting, simple crawl run state, caching
@@ -47,18 +48,20 @@ with Puppeteer, Elasticsearch, Redis, AI enrichment, and user personalization.
 
 ## Data Sources
 
-`habr_career` and `remoteok` have working `CrawlStrategy` implementations; `weworkremotely` and
-`craigslist` are seeded but deferred (no parser yet — crawling them logs a `WARN` and skips
-rather than failing). Each source's `type` (`STATIC`/`DYNAMIC`), `defaultDelayMs`, and base URL
-live on the `CrawlSource` row itself ([`apps/api/prisma/seed.ts`](apps/api/prisma/seed.ts)) —
-there's no separate per-run configuration.
+`habr_career`, `remoteok`, and `weworkremotely` have working `CrawlStrategy` implementations;
+`craigslist` is seeded but deferred (no parser yet — crawling it logs a `WARN` and skips rather
+than failing). Each source's `defaultDelayMs`, base URL, and `maxVacanciesToCrawl` live on the
+`CrawlSource` row itself ([`apps/api/prisma/seed.ts`](apps/api/prisma/seed.ts)) — there's no
+separate per-run configuration. There is no stored fetch-mechanism field — which library a source
+uses (Axios+Cheerio vs. Puppeteer) is defined by its `CrawlStrategy` module and surfaced to the UI
+via that strategy's own `description`, not a separate DB classification that could drift from it.
 
-| Key | Site | Status | Type |
+| Key | Site | Status | Fetch mechanism |
 | --- | --- | --- | --- |
-| `habr_career` | [career.habr.com](https://career.habr.com) | Implemented | `STATIC` (Axios+Cheerio) |
-| `remoteok` | [remoteok.com](https://remoteok.com) | Implemented | `DYNAMIC` (Puppeteer) |
-| `weworkremotely` | [weworkremotely.com](https://weworkremotely.com) | Deferred, no parser | `STATIC` |
-| `craigslist` | [craigslist.org](https://craigslist.org) | Deferred, no parser | `STATIC` |
+| `habr_career` | [career.habr.com](https://career.habr.com) | Implemented | Axios+Cheerio |
+| `remoteok` | [remoteok.com](https://remoteok.com) | Implemented | Puppeteer (listing only) |
+| `weworkremotely` | [weworkremotely.com](https://weworkremotely.com) | Implemented | Puppeteer (listing) + RSS via Axios (detail) |
+| `craigslist` | [craigslist.org](https://craigslist.org) | Deferred, no parser | — |
 
 Full per-source rationale (why each strategy, robots.txt/Cloudflare findings, the retired
 `moikrug` → Habr redirect) is in the `data-sources` skill
@@ -104,8 +107,9 @@ As a user I can:
 2. View a list of predefined data sources (see Data Sources above)
 3. Start / Stop a crawl for a source, or crawl all sources at once — crawling is a shared,
    global operation (not scoped to me); any logged-in user can trigger it (see Security
-   Considerations). Crawl strategy, delay, and page depth are not configurable per run — they
-   come from the selected `CrawlSource`'s own `type`/`defaultDelayMs`/`maxPagesToCrawl`.
+   Considerations). Crawl strategy, delay, and vacancy volume are not configurable per run — they
+   come from the selected `CrawlSource`'s own `defaultDelayMs`/`maxVacanciesToCrawl` (the strategy
+   itself is chosen by `CrawlSource.name`, not a stored field).
 4. See the status and progress of a source's crawl runs, including execution logs
 5. Search through all collected vacancies using Elasticsearch — free text plus facets
    (Specialization, Seniority level, Remote/On-site, Location, Company) and relevance sorting
@@ -144,7 +148,9 @@ history are in the `elasticsearch-conventions` skill
   governing that directory.
 - Crawling is global, not scoped to a user — see Security Considerations.
 - Respect `robots.txt` and implement rate limiting (via Redis).
-- Puppeteer vs Axios/Cheerio is chosen per source (`CrawlSource.type`), never a per-run setting.
+- Puppeteer vs Axios/Cheerio is chosen per source (hardcoded in that source's own `CrawlStrategy`
+  module, surfaced via `CrawlStrategy.description` — not a stored `CrawlSource` field), never a
+  per-run setting.
 - AI enrichment goes through an interface; ship a `MockAIEnricher` first, real Claude API later.
 - Keep the architecture modular and easy to extend.
 - Prefer simplicity for MVP (avoid over-engineering).

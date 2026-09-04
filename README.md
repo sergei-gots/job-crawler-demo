@@ -224,7 +224,7 @@ See `.claude/features/04_FEATURE_PUPPETEER_REMOTEOK.md`.
 ### Not yet implemented
 
 - AI enrichment
-- Additional source parsers (WeWorkRemotely, Craigslist)
+- Additional source parsers (Craigslist)
 
 Track progress against the MVP plan in `CLAUDE.md` → User Stories.
 
