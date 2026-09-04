@@ -5,10 +5,12 @@ import { useCallback, useEffect, useState } from "react";
 import { clearCache, clearSearchData } from "@/features/admin-actions";
 import { crawlAll, useCrawlActions } from "@/features/run-crawl";
 import { useRequireAuth } from "@/entities/session";
-import { getSourceRun, getSources, type CrawlRun, type Source } from "@/entities/source";
+import { getSourceRun, getSources, StrategyFlow, type CrawlRun, type Source } from "@/entities/source";
 import { ApiError } from "@/shared/lib/api";
 import { Button } from "@/shared/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
+import { Checkbox } from "@/shared/ui/checkbox";
+import { Label } from "@/shared/ui/label";
 import { PageTitle } from "@/shared/ui/page-title";
 import { StatusBadge } from "@/shared/ui/status-badge";
 
@@ -22,6 +24,8 @@ export function SourcesPage() {
   const [crawlAllPending, setCrawlAllPending] = useState(false);
   const [clearSearchDataPending, setClearSearchDataPending] = useState(false);
   const [clearCachePending, setClearCachePending] = useState(false);
+  const [showStrategies, setShowStrategies] = useState(false);
+  const [comparedSourceNames, setComparedSourceNames] = useState<Set<string>>(new Set());
 
   const loadRuns = useCallback(
     async (sourceIds: number[]) => {
@@ -246,6 +250,64 @@ export function SourcesPage() {
               </div>
             )}
           </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Strategies</CardTitle>
+              <Button variant="secondary" size="sm" onClick={() => setShowStrategies((v) => !v)}>
+                {showStrategies ? "Hide strategies" : "Show strategies"}
+              </Button>
+            </div>
+          </CardHeader>
+          {showStrategies && (
+            <CardContent className="flex flex-col gap-4">
+              <p className="text-sm text-muted-foreground">
+                Crawling strategy for the sources you select below.
+              </p>
+              <div className="flex flex-wrap gap-4">
+                {(sources ?? []).map((source) => (
+                  <Label key={source.id} className="cursor-pointer">
+                    <Checkbox
+                      checked={comparedSourceNames.has(source.name)}
+                      onCheckedChange={(checked) => {
+                        setComparedSourceNames((prev) => {
+                          const next = new Set(prev);
+                          if (checked) next.add(source.name);
+                          else next.delete(source.name);
+                          return next;
+                        });
+                      }}
+                    />
+                    {source.name}
+                  </Label>
+                ))}
+              </div>
+              {comparedSourceNames.size > 0 && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {(sources ?? [])
+                    .filter((source) => comparedSourceNames.has(source.name))
+                    .map((source) => (
+                      <div key={source.id} className="rounded-lg border border-border p-3">
+                        <p className="mb-2 text-sm font-medium text-foreground">
+                          {source.name}{" "}
+                          <a
+                            href={source.baseUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-normal text-link hover:underline"
+                          >
+                            ({source.baseUrl})
+                          </a>
+                        </p>
+                        <StrategyFlow steps={source.strategySteps} />
+                      </div>
+                    ))}
+                </div>
+              )}
+            </CardContent>
+          )}
         </Card>
       </div>
     </main>

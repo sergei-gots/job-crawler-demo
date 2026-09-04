@@ -143,6 +143,49 @@ export const habrCareerStrategy: CrawlStrategy = {
   description:
     "Axios + Cheerio, two-pass (listing, then per-vacancy detail-page enrichment) — fully server-rendered, no browser needed",
 
+  steps: [
+    {
+      type: "process",
+      title: "Fetch listing - GET /vacancies",
+      detail: {
+        method: "Axios - axios.get()",
+        explanation: "Plain HTTP request, no browser needed.",
+      },
+    },
+    {
+      type: "decision",
+      title: "Server-rendered?",
+      detail: {
+        explanation: "Confirmed via a manual curl check - the listing and detail pages are both fully server-rendered HTML.",
+        result: "Yes - no Puppeteer needed anywhere in this strategy.",
+      },
+    },
+    {
+      type: "process",
+      title: "Parse listing",
+      detail: {
+        method: "Cheerio - $(\".vacancy-card\").each()",
+        explanation: "Extracts externalId, title, company, url from each vacancy card.",
+      },
+    },
+    {
+      type: "process",
+      title: "Fetch each vacancy's detail page",
+      detail: {
+        method: "Axios - axios.get()",
+        explanation: "Same rate limiter and 1h page cache as the listing fetch.",
+      },
+    },
+    {
+      type: "process",
+      title: "Parse JobPosting JSON-LD",
+      detail: {
+        method: "Cheerio - JSON.parse(script.html())",
+        explanation: "Extracts description, location, isRemote, seniority, specialization from the detail page's schema.org/JobPosting block.",
+      },
+    },
+  ],
+
   // Pages are fetched until source.maxVacanciesToCrawl is reached or a page comes back with no
   // vacancies (real end of results) - not a fixed page count. habr_career is the only seeded
   // source with genuine page-based pagination, so it's also the only strategy that needs to stop

@@ -7,6 +7,7 @@ import { deleteVacanciesForSource } from "../search/deleteVacancies.js";
 import type { CrawlerResultDoc } from "../search/crawlerResultsIndex.js";
 import type { UpdateSourceSettingsInput } from "./sources.schemas.js";
 import { getStrategy } from "../crawler/index.js";
+import type { StrategyStep } from "../crawler/types.js";
 import {
   executeCrawlRun,
   isSourceCrawling,
@@ -16,23 +17,48 @@ import {
   waitUntilNotCrawling,
 } from "../crawler/crawlRunner.js";
 
+// Generic fallback for a source with no implemented CrawlStrategy yet (currently only
+// Craigslist) - deliberately NOT source-specific research content (e.g. Craigslist's actual
+// anti-scraping enforcement history lives in the data-sources skill only, not duplicated here).
+// The UI diagram's job is to show mechanism actually executed, and for these sources that
+// mechanism is simply "nothing runs."
+const NOT_IMPLEMENTED_STEPS: StrategyStep[] = [
+  {
+    type: "process",
+    title: "Crawl triggered",
+    detail: { explanation: 'getStrategy(source.name) is looked up in the strategy registry.' },
+  },
+  {
+    type: "terminal",
+    title: "No CrawlStrategy implemented yet",
+    detail: { explanation: "WARN logged, run completes with 0 vacancies rather than failing." },
+  },
+];
+
 /**
  * How this source is actually crawled, read straight from its `CrawlStrategy` (see
- * `CrawlStrategy.description` in `crawler/types.ts`) rather than a separate DB column — there's
- * nothing to keep in sync because there's only one copy of this fact, in the strategy file
- * itself. `null` for a source with no implemented strategy yet (e.g. Craigslist).
+ * `CrawlStrategy.description`/`steps` in `crawler/types.ts`) rather than a separate DB column —
+ * there's nothing to keep in sync because there's only one copy of this fact, in the strategy
+ * file itself. Falls back to `NOT_IMPLEMENTED_STEPS`/`null` for a source with no implemented
+ * strategy yet (e.g. Craigslist).
  */
 export interface SourceWithStrategyInfo extends CrawlSource {
   strategyDescription: string | null;
+  strategySteps: StrategyStep[];
 }
 
-function withStrategyDescription(source: CrawlSource): SourceWithStrategyInfo {
-  return { ...source, strategyDescription: getStrategy(source)?.description ?? null };
+function withStrategyInfo(source: CrawlSource): SourceWithStrategyInfo {
+  const strategy = getStrategy(source);
+  return {
+    ...source,
+    strategyDescription: strategy?.description ?? null,
+    strategySteps: strategy?.steps ?? NOT_IMPLEMENTED_STEPS,
+  };
 }
 
 export async function listSources(): Promise<SourceWithStrategyInfo[]> {
   const sources = await prisma.crawlSource.findMany({ orderBy: { id: "asc" } });
-  return sources.map(withStrategyDescription);
+  return sources.map(withStrategyInfo);
 }
 
 export async function getSourceById(id: number): Promise<CrawlSource> {
@@ -43,9 +69,9 @@ export async function getSourceById(id: number): Promise<CrawlSource> {
   return source;
 }
 
-/** Controller-facing variant of `getSourceById` that also attaches `strategyDescription`. */
+/** Controller-facing variant of `getSourceById` that also attaches strategy info. */
 export async function getSourceByIdWithStrategyInfo(id: number): Promise<SourceWithStrategyInfo> {
-  return withStrategyDescription(await getSourceById(id));
+  return withStrategyInfo(await getSourceById(id));
 }
 
 export async function updateSourceSettings(
@@ -60,7 +86,7 @@ export async function updateSourceSettings(
       ...(input.defaultDelayMs !== undefined && { defaultDelayMs: input.defaultDelayMs }),
     },
   });
-  return withStrategyDescription(updated);
+  return withStrategyInfo(updated);
 }
 
 export async function getSourceVacancies(id: number): Promise<CrawlerResultDoc[]> {

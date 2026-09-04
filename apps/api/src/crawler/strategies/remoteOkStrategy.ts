@@ -114,6 +114,49 @@ export function parseListingPage(html: string, source: CrawlSource): RawVacancy[
 export const remoteOkStrategy: CrawlStrategy = {
   description: "Puppeteer (listing only — Cloudflare-gated; no detail crawl needed)",
 
+  steps: [
+    {
+      type: "process",
+      title: "Fetch listing - GET /remote-dev-jobs (plain request)",
+      detail: {
+        method: "Axios - axios.get()",
+        explanation: "First attempt, no browser.",
+      },
+    },
+    {
+      type: "decision",
+      title: "Blocked (403)?",
+      detail: {
+        explanation: "A plain non-browser request to the listing gets rejected.",
+        result: "Yes.",
+      },
+    },
+    {
+      type: "problem",
+      title: "PROBLEM - Cloudflare bot-check",
+      detail: {
+        explanation: "Cloudflare rejects non-browser requests with a 403 - confirmed via a live spike.",
+      },
+    },
+    {
+      type: "solution",
+      title: "FIX - Puppeteer + realistic UA",
+      detail: {
+        method: "Puppeteer - page.setUserAgent()",
+        explanation: "Sets a realistic desktop-Chrome User-Agent instead of Puppeteer's default (fingerprinted by Cloudflare) or a truthful non-browser UA (would defeat the point of using a real browser at all).",
+        result: "Listing fetch passes Cloudflare's check reliably.",
+      },
+    },
+    {
+      type: "process",
+      title: "Parse tr.job rows - no detail crawl",
+      detail: {
+        method: "Cheerio - $(\"tr.job\").each()",
+        explanation: "Reads data-* attributes plus each row's own embedded JSON-LD block - the listing already carries description, tags, company, and posted date, so a per-vacancy detail fetch would just re-fetch the same data at extra cost to the source.",
+      },
+    },
+  ],
+
   async crawl(source: CrawlSource): Promise<CrawlResult> {
     const pageUrl = new URL(LISTING_PATH, source.baseUrl).toString();
 

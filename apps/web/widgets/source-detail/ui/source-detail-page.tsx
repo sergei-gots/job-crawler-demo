@@ -15,6 +15,7 @@ import {
   getSource,
   getSourceRun,
   getSourceVacancies,
+  StrategyFlow,
   type CrawlRun,
   type CrawlRunWithLogs,
   type Source,
@@ -38,6 +39,7 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
   const [vacanciesPage, setVacanciesPage] = useState(1);
   const [showLogs, setShowLogs] = useState(false);
   const [showVacancies, setShowVacancies] = useState(false);
+  const [showStrategy, setShowStrategy] = useState(false);
   const [clearDataPending, setClearDataPending] = useState(false);
   const [expandedRawVacancyIds, setExpandedRawVacancyIds] = useState<Set<string>>(new Set());
   const [maxVacanciesInput, setMaxVacanciesInput] = useState("");
@@ -465,6 +467,26 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
                       </Button>
                     </div>
                   )}
+                </CardContent>
+              )}
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Applied crawling strategy</CardTitle>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowStrategy((v) => !v)}
+                  >
+                    {showStrategy ? "Hide strategy" : "Show strategy"}
+                  </Button>
+                </div>
+              </CardHeader>
+              {showStrategy && (
+                <CardContent>
+                  <StrategyFlow steps={source.strategySteps} />
                 </CardContent>
               )}
             </Card>
