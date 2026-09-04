@@ -29,6 +29,16 @@ export interface EnrichDetailsResult {
 export type LogProgress = (message: string, level?: "INFO" | "WARN" | "ERROR") => Promise<void>;
 
 export interface CrawlStrategy {
+  /**
+   * Short, human-readable summary of how this strategy actually fetches data (e.g. which
+   * library/technique each phase uses), surfaced directly in the Source detail page UI in place
+   * of a separate `CrawlSource.type` column. Living here means it can't drift from the code it
+   * describes the way a DB-stored classification could (and did — see
+   * `.claude/features/06_FEATURE_WEWORKREMOTELY_AND_VACANCY_CAP.md`'s "type field" decision):
+   * changing the transport in `crawl()`/`enrichDetails()` and updating this string happen in the
+   * same file, often the same edit.
+   */
+  description: string;
   crawl(source: CrawlSource): Promise<CrawlResult>;
   /**
    * Optional: fetches each vacancy's own detail page for richer fields (description, location,

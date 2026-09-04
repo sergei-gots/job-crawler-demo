@@ -46,7 +46,9 @@
 2. The **crawl runner** (in-process, fire-and-forget — no queue/worker pool) picks the matching
    `CrawlStrategy` for the source via `getStrategy(source)`. A source without a real strategy yet
    logs a `WARN` `CrawlLog` and is skipped rather than failing.
-3. The strategy fetches the listing page(s) (bounded by `maxPagesToCrawl`), respecting **Redis**
+3. The strategy fetches the listing page(s), capped at `maxVacanciesToCrawl` vacancies (a source
+   with real pagination like `habr_career` stops requesting further pages once the cap is
+   reached; a source with a single one-shot listing fetch just truncates it), respecting **Redis**
    rate limiting (`defaultDelayMs`, keyed by `sourceId`) and a short-TTL Redis page cache; parses
    vacancies; upserts each into **Elasticsearch**, deduplicated by `sourceId:externalId`.
 4. If the strategy has an `enrichDetails` step (currently only `habr_career`'s does), it then
@@ -92,14 +94,21 @@
 | id               | int (PK)      | autoincrement                                      |
 | name             | string        | unique; seeded, not user-editable                  |
 | baseUrl          | string        |                                                     |
-| type             | enum          | `STATIC` (Axios/Cheerio) \| `DYNAMIC` (Puppeteer)  |
 | isActive         | boolean       | default `true`                                     |
-| respectRobotsTxt | boolean       | default `true`                                     |
 | defaultDelayMs   | int           | default `2000`; per-source rate-limit interval; user-editable (1000-20000 ms) via `PATCH /sources/:id` |
-| maxPagesToCrawl  | int           | default `1`; bounds listing-page pagination depth per crawl; user-editable (1-4) via `PATCH /sources/:id`, but only when `supportsPageLimit` is `true` |
-| supportsPageLimit | boolean      | default `true`; `false` for sources whose listing has no real pagination (e.g. RemoteOK — a fixed set of rows regardless of page number), so `maxPagesToCrawl` would have no effect and the UI disables editing it |
+| maxVacanciesToCrawl | int        | default `25`; caps how many vacancies from a crawl's listing pass get enriched/upserted, regardless of how (or whether) the source paginates its listing; user-editable (1-200) via `PATCH /sources/:id` for every source — replaced the earlier `maxPagesToCrawl`/`supportsPageLimit` pair, which only made sense for sources with real page-based pagination |
 | createdAt        | timestamp     |                                                     |
 | updatedAt        | timestamp     |                                                     |
+
+There is deliberately no stored `type`/technology field. Which library each strategy uses (Axios+Cheerio vs. Puppeteer) is fully determined by the `CrawlStrategy` module dispatched for that source (`crawler/index.ts`'s `getStrategy`) — a separate DB column repeating that fact could drift from the code without anything catching it (and did, for `weworkremotely` mid-Increment 6, before the column was removed). The API instead computes a `strategyDescription: string | null` per source at response time straight from `CrawlStrategy.description` (a field on the strategy object itself, living next to the `crawl()`/`enrichDetails()` it describes) — `null` for a source with no implemented strategy yet.
+
+There is also deliberately no `respectRobotsTxt` field anymore — it was removed alongside `type`
+for the same reason: it had zero consumers anywhere in the codebase (not read by any crawl logic,
+not displayed in the UI, not even referenced in seed data beyond its DB default), so it recorded
+nothing real. Each source's actual `robots.txt` findings (what's disallowed, what a strategy
+respects) are manually researched and documented per source in the `data-sources` skill and that
+source's feature doc instead — real, checkable facts, not a boolean that implied an enforcement
+mechanism which doesn't exist in code.
 
 ### CrawlRun (PostgreSQL)
 | Field          | Type                       | Notes                                        |
@@ -156,17 +165,20 @@ they'll be added as part of the increment that actually builds `AIEnricher`.
 
 ## Key interfaces (to keep things swappable)
 
-- **`CrawlStrategy`** (`apps/api/src/crawler/types.ts`) — `crawl(source): Promise<CrawlResult>`
-  plus an optional `enrichDetails(source, vacancies, isCancelled, logProgress):
-  Promise<EnrichDetailsResult>` for sources that support a second, per-vacancy detail-page pass.
-  Chosen per source via `getStrategy(source)` (dispatches on `CrawlSource.name`, not `.type` —
-  `type` only signals "needs a browser or not," not which specific strategy to use) — not
-  configurable per run. Strategy files are named after the site they crawl, not the fetch/parse
-  library, since a strategy is 1:1 with a source and the library is an implementation detail:
-  `habrCareerStrategy.ts` (Axios+Cheerio; `habr_career`'s listing turned out to be server-rendered
-  despite being seeded as `DYNAMIC`) and `remoteOkStrategy.ts` (Puppeteer, Increment 4 —
-  `remoteok`'s listing genuinely needs a real browser to get past a Cloudflare 403 on plain
-  requests).
+- **`CrawlStrategy`** (`apps/api/src/crawler/types.ts`) — a required `description: string` (a
+  short human-readable summary of how the strategy actually fetches data, surfaced via the API as
+  `strategyDescription` — see the CrawlSource table note above) plus `crawl(source):
+  Promise<CrawlResult>` and an optional `enrichDetails(source, vacancies, isCancelled,
+  logProgress): Promise<EnrichDetailsResult>` for sources that support a second, per-vacancy
+  detail-page pass. Chosen per source via `getStrategy(source)`, which dispatches purely on
+  `CrawlSource.name` — not configurable per run. Strategy files are named after the site they
+  crawl, not the fetch/parse library, since a strategy is 1:1 with a source and the library is an
+  implementation detail: `habrCareerStrategy.ts` (Axios+Cheerio throughout — `habr_career`'s
+  listing and detail pages are both server-rendered), `remoteOkStrategy.ts` (Puppeteer, listing
+  only — Increment 4 — `remoteok`'s listing needs a real browser to get past a Cloudflare 403 on
+  plain requests), and `weWorkRemotelyStrategy.ts` (Puppeteer for the listing, an RSS feed via
+  plain Axios for detail enrichment — Increment 6 — see `06_FEATURE_WEWORKREMOTELY_AND_VACANCY_
+  CAP.md` for why the detail pass isn't Puppeteer too).
 - **`AIEnricher`** — *not yet implemented*. Planned interface: `enrich(raw): Promise<Enrichment>`;
   planned implementations: `MockAIEnricher` first, `ClaudeEnricher` (real Claude API) later,
   swapped via config/env.

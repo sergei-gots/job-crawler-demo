@@ -6,6 +6,7 @@ import { queryVacanciesForSource } from "../search/queryVacancies.js";
 import { deleteVacanciesForSource } from "../search/deleteVacancies.js";
 import type { CrawlerResultDoc } from "../search/crawlerResultsIndex.js";
 import type { UpdateSourceSettingsInput } from "./sources.schemas.js";
+import { getStrategy } from "../crawler/index.js";
 import {
   executeCrawlRun,
   isSourceCrawling,
@@ -15,8 +16,23 @@ import {
   waitUntilNotCrawling,
 } from "../crawler/crawlRunner.js";
 
-export function listSources(): Promise<CrawlSource[]> {
-  return prisma.crawlSource.findMany({ orderBy: { id: "asc" } });
+/**
+ * How this source is actually crawled, read straight from its `CrawlStrategy` (see
+ * `CrawlStrategy.description` in `crawler/types.ts`) rather than a separate DB column — there's
+ * nothing to keep in sync because there's only one copy of this fact, in the strategy file
+ * itself. `null` for a source with no implemented strategy yet (e.g. Craigslist).
+ */
+export interface SourceWithStrategyInfo extends CrawlSource {
+  strategyDescription: string | null;
+}
+
+function withStrategyDescription(source: CrawlSource): SourceWithStrategyInfo {
+  return { ...source, strategyDescription: getStrategy(source)?.description ?? null };
+}
+
+export async function listSources(): Promise<SourceWithStrategyInfo[]> {
+  const sources = await prisma.crawlSource.findMany({ orderBy: { id: "asc" } });
+  return sources.map(withStrategyDescription);
 }
 
 export async function getSourceById(id: number): Promise<CrawlSource> {
@@ -27,24 +43,24 @@ export async function getSourceById(id: number): Promise<CrawlSource> {
   return source;
 }
 
+/** Controller-facing variant of `getSourceById` that also attaches `strategyDescription`. */
+export async function getSourceByIdWithStrategyInfo(id: number): Promise<SourceWithStrategyInfo> {
+  return withStrategyDescription(await getSourceById(id));
+}
+
 export async function updateSourceSettings(
   id: number,
   input: UpdateSourceSettingsInput,
-): Promise<CrawlSource> {
-  const source = await getSourceById(id);
-  if (input.maxPagesToCrawl !== undefined && !source.supportsPageLimit) {
-    throw new ApiError(
-      400,
-      `${source.name}'s listing has no real pagination, so maxPagesToCrawl has no effect for it`,
-    );
-  }
-  return prisma.crawlSource.update({
+): Promise<SourceWithStrategyInfo> {
+  await getSourceById(id);
+  const updated = await prisma.crawlSource.update({
     where: { id },
     data: {
-      ...(input.maxPagesToCrawl !== undefined && { maxPagesToCrawl: input.maxPagesToCrawl }),
+      ...(input.maxVacanciesToCrawl !== undefined && { maxVacanciesToCrawl: input.maxVacanciesToCrawl }),
       ...(input.defaultDelayMs !== undefined && { defaultDelayMs: input.defaultDelayMs }),
     },
   });
+  return withStrategyDescription(updated);
 }
 
 export async function getSourceVacancies(id: number): Promise<CrawlerResultDoc[]> {

@@ -5,9 +5,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { clearSourceData } from "@/features/admin-actions";
 import {
   updateSourceDelayMs,
-  updateSourceMaxPagesToCrawl,
+  updateSourceMaxVacanciesToCrawl,
   validateDelayMs,
-  validateMaxPagesToCrawl,
+  validateMaxVacanciesToCrawl,
 } from "@/features/edit-source-settings";
 import { useCrawlActions } from "@/features/run-crawl";
 import { useRequireAuth } from "@/entities/session";
@@ -29,12 +29,6 @@ import { StatusBadge } from "@/shared/ui/status-badge";
 const POLL_INTERVAL_MS = 2000;
 const VACANCIES_PAGE_SIZE = 10;
 
-function typeTooltip(type: Source["type"]): string {
-  return type === "DYNAMIC"
-    ? "Dynamic (JS-rendered) pages → uses Puppeteer"
-    : "Static pages → uses Axios + Cheerio";
-}
-
 export function SourceDetailPage({ sourceId }: { sourceId: number }) {
   const { token, handleUnauthorized } = useRequireAuth();
   const [source, setSource] = useState<Source | null>(null);
@@ -46,18 +40,18 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
   const [showVacancies, setShowVacancies] = useState(false);
   const [clearDataPending, setClearDataPending] = useState(false);
   const [expandedRawVacancyIds, setExpandedRawVacancyIds] = useState<Set<string>>(new Set());
-  const [maxPagesInput, setMaxPagesInput] = useState("");
-  const [maxPagesError, setMaxPagesError] = useState<string | null>(null);
-  const [maxPagesPending, setMaxPagesPending] = useState(false);
+  const [maxVacanciesInput, setMaxVacanciesInput] = useState("");
+  const [maxVacanciesError, setMaxVacanciesError] = useState<string | null>(null);
+  const [maxVacanciesPending, setMaxVacanciesPending] = useState(false);
   // Sync the input from the freshly loaded/saved source value, without an effect (adjust state
   // during render — same pattern as the filters-changed-so-reset-page logic in
-  // use-vacancy-search.ts) — `lastLoadedMaxPages` tracks what the input was last synced to, so a
-  // real change in `source` re-syncs, but the user's own in-progress edit doesn't get clobbered
+  // use-vacancy-search.ts) — `lastLoadedMaxVacancies` tracks what the input was last synced to, so
+  // a real change in `source` re-syncs, but the user's own in-progress edit doesn't get clobbered
   // on every render.
-  const [lastLoadedMaxPages, setLastLoadedMaxPages] = useState<number | null>(null);
-  if (source && source.maxPagesToCrawl !== lastLoadedMaxPages) {
-    setLastLoadedMaxPages(source.maxPagesToCrawl);
-    setMaxPagesInput(String(source.maxPagesToCrawl));
+  const [lastLoadedMaxVacancies, setLastLoadedMaxVacancies] = useState<number | null>(null);
+  if (source && source.maxVacanciesToCrawl !== lastLoadedMaxVacancies) {
+    setLastLoadedMaxVacancies(source.maxVacanciesToCrawl);
+    setMaxVacanciesInput(String(source.maxVacanciesToCrawl));
   }
   const [delayMsInput, setDelayMsInput] = useState("");
   const [delayMsError, setDelayMsError] = useState<string | null>(null);
@@ -190,26 +184,26 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
     }
   }
 
-  async function handleSaveMaxPages() {
+  async function handleSaveMaxVacancies() {
     if (!token) return;
-    const parsed = Number(maxPagesInput);
-    const validationError = validateMaxPagesToCrawl(parsed);
+    const parsed = Number(maxVacanciesInput);
+    const validationError = validateMaxVacanciesToCrawl(parsed);
     if (validationError) {
-      setMaxPagesError(validationError);
+      setMaxVacanciesError(validationError);
       return;
     }
-    setMaxPagesError(null);
-    setMaxPagesPending(true);
+    setMaxVacanciesError(null);
+    setMaxVacanciesPending(true);
     try {
-      setSource(await updateSourceMaxPagesToCrawl(sourceId, parsed, token));
+      setSource(await updateSourceMaxVacanciesToCrawl(sourceId, parsed, token));
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         handleUnauthorized();
         return;
       }
-      setMaxPagesError(err instanceof ApiError ? err.message : "Failed to save");
+      setMaxVacanciesError(err instanceof ApiError ? err.message : "Failed to save");
     } finally {
-      setMaxPagesPending(false);
+      setMaxVacanciesPending(false);
     }
   }
 
@@ -282,8 +276,8 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
                     </a>
                   </p>
                   <p>
-                    <span className="text-muted-foreground">Type: </span>
-                    <span title={typeTooltip(source.type)}>{source.type}</span>
+                    <span className="text-muted-foreground">Implementation: </span>
+                    <span>{source.strategyDescription ?? "Not implemented yet"}</span>
                   </p>
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">Rate limit: </span>
@@ -310,43 +304,35 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
                     </Button>
                   </div>
                   {delayMsError && <p className="text-sm text-destructive">{delayMsError}</p>}
-                  {source.supportsPageLimit ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground">Pages to crawl: </span>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={4}
-                        value={maxPagesInput}
-                        onChange={(e) => {
-                          setMaxPagesInput(e.target.value);
-                          setMaxPagesError(null);
-                        }}
-                        className="h-7 w-16 px-2 py-1"
-                        disabled={maxPagesPending}
-                      />
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={
-                          maxPagesPending || maxPagesInput === String(source.maxPagesToCrawl)
-                        }
-                        onClick={handleSaveMaxPages}
-                      >
-                        {maxPagesPending ? "Saving..." : "Save"}
-                      </Button>
-                    </div>
-                  ) : (
-                    <p>
-                      <span className="text-muted-foreground">Pages to crawl: </span>
-                      <span
-                        title={`${source.name}'s listing has no real pagination — it always fetches everything in one request, so this setting has no effect`}
-                      >
-                        Not applicable
-                      </span>
-                    </p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Vacancies to crawl: </span>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={200}
+                      value={maxVacanciesInput}
+                      onChange={(e) => {
+                        setMaxVacanciesInput(e.target.value);
+                        setMaxVacanciesError(null);
+                      }}
+                      className="h-7 w-16 px-2 py-1"
+                      disabled={maxVacanciesPending}
+                    />
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={
+                        maxVacanciesPending ||
+                        maxVacanciesInput === String(source.maxVacanciesToCrawl)
+                      }
+                      onClick={handleSaveMaxVacancies}
+                    >
+                      {maxVacanciesPending ? "Saving..." : "Save"}
+                    </Button>
+                  </div>
+                  {maxVacanciesError && (
+                    <p className="text-sm text-destructive">{maxVacanciesError}</p>
                   )}
-                  {maxPagesError && <p className="text-sm text-destructive">{maxPagesError}</p>}
                   <p>
                     <span className="text-muted-foreground">Last run: </span>
                     {run?.startedAt ? new Date(run.startedAt).toLocaleString() : "Never"}

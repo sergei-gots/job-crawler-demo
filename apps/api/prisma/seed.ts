@@ -1,45 +1,40 @@
-import { PrismaClient, SourceType } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 const sources: {
   name: string;
   baseUrl: string;
-  type: SourceType;
   defaultDelayMs: number;
-  // Whether maxPagesToCrawl bounds this source's listing fetches at all. RemoteOK's listing has
-  // no real pagination (confirmed by spike in Increment 4 — `?page=2` returns the same 50 rows
-  // as page 1), so `crawl()` always fetches it exactly once regardless of maxPagesToCrawl; the
-  // field would be misleading if left editable in the UI for this source.
-  supportsPageLimit: boolean;
+  // Caps how many vacancies from a crawl's listing pass get enriched/upserted, regardless of how
+  // the underlying source paginates (or doesn't) its listing. Applied inside each strategy's
+  // crawl() — see apps/api/src/crawler/vacancyCap.ts. 25 is a sane default for a demo-scale
+  // corpus; raised per source later if needed.
+  maxVacanciesToCrawl: number;
 }[] = [
   {
     name: "Habr Career",
     baseUrl: "https://career.habr.com",
-    type: "STATIC",
     defaultDelayMs: 12000,
-    supportsPageLimit: true,
+    maxVacanciesToCrawl: 25,
   },
   {
     name: "RemoteOK",
     baseUrl: "https://remoteok.com",
-    type: "DYNAMIC",
     defaultDelayMs: 11000,
-    supportsPageLimit: false,
+    maxVacanciesToCrawl: 25,
   },
   {
     name: "WeWorkRemotely",
     baseUrl: "https://weworkremotely.com",
-    type: "STATIC",
     defaultDelayMs: 11000,
-    supportsPageLimit: true,
+    maxVacanciesToCrawl: 25,
   },
   {
     name: "Craigslist",
     baseUrl: "https://craigslist.org",
-    type: "STATIC",
     defaultDelayMs: 11000,
-    supportsPageLimit: true,
+    maxVacanciesToCrawl: 25,
   },
 ];
 
