@@ -28,6 +28,26 @@ export interface EnrichDetailsResult {
 
 export type LogProgress = (message: string, level?: "INFO" | "WARN" | "ERROR") => Promise<void>;
 
+export type StrategyStepType = "process" | "decision" | "problem" | "solution" | "terminal";
+
+export interface StrategyStep {
+  type: StrategyStepType;
+  /** Always visible, short. */
+  title: string;
+  /**
+   * Shown on click-to-expand in the UI. Rendered as a compact definition list (method /
+   * explanation / result), not a prose paragraph — keep each field terse.
+   */
+  detail?: {
+    /** The library method this step actually calls, if any — e.g. "Puppeteer — page.setUserAgent()". Omitted for steps with no library call (decisions, pure logic). */
+    method?: string;
+    /** What it does and why — the fact itself. */
+    explanation: string;
+    /** Measured outcome, when one exists — e.g. "120/120 listing fetches succeeded". */
+    result?: string;
+  };
+}
+
 export interface CrawlStrategy {
   /**
    * Short, human-readable summary of how this strategy actually fetches data (e.g. which
@@ -39,6 +59,14 @@ export interface CrawlStrategy {
    * same file, often the same edit.
    */
   description: string;
+  /**
+   * The step-by-step chain a reader would trace through this strategy's `crawl()`/
+   * `enrichDetails()` — what was tried, what broke, what fixed it — surfaced in the UI as a
+   * flowchart (see `.claude/features/07_FEATURE_STRATEGY_DIAGRAMS.md`). Lives here for the same
+   * anti-drift reason as `description`: editing the transport/logic and updating `steps` happen
+   * in the same file, often the same edit.
+   */
+  steps: StrategyStep[];
   crawl(source: CrawlSource): Promise<CrawlResult>;
   /**
    * Optional: fetches each vacancy's own detail page for richer fields (description, location,

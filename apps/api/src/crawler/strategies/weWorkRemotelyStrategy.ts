@@ -160,6 +160,81 @@ export function parseWeWorkRemotelyRssFeed(xml: string): Map<string, Partial<Raw
 export const weWorkRemotelyStrategy: CrawlStrategy = {
   description: "Puppeteer (listing — Cloudflare-gated) + RSS feed via Axios (detail enrichment)",
 
+  steps: [
+    {
+      type: "process",
+      title: "Fetch listing - GET /categories/…jobs (plain request)",
+      detail: {
+        method: "Axios - axios.get()",
+        explanation: "First attempt, no browser.",
+      },
+    },
+    {
+      type: "decision",
+      title: "Blocked (403)?",
+      detail: {
+        explanation: "A plain non-browser request to the category listing gets rejected.",
+        result: "Yes.",
+      },
+    },
+    {
+      type: "problem",
+      title: "PROBLEM - Cloudflare JS challenge",
+      detail: {
+        explanation: "{{cf-mitigated}} on both the listing and vacancy detail pages. Plain requests used to work here, but the site has since added bot protection.",
+      },
+    },
+    {
+      type: "solution",
+      title: "FIX - Puppeteer + realistic UA",
+      detail: {
+        method: "Puppeteer - page.setUserAgent()",
+        explanation: "Same technique as RemoteOK's listing fix.",
+        result: "Listing fetch: 120/120 reliable across every run tested.",
+      },
+    },
+    {
+      type: "process",
+      title: "Parse listing rows",
+      detail: {
+        method: "Cheerio - $(\"li.new-listing-container\").each()",
+        explanation: "externalId is the URL slug parsed from each row's href - this source has no numeric vacancy id, unlike habr or RemoteOK. Example: href \"/remote-jobs/samsara-staff-software-engineer\" gives externalId \"samsara-staff-software-engineer\".",
+      },
+    },
+    {
+      type: "process",
+      title: "enrichDetails v1 - Puppeteer per-vacancy detail fetch",
+      detail: {
+        method: "Puppeteer - page.goto() per vacancy",
+        explanation: "Mirrored habr's two-level shape: fetch each vacancy's own detail page for its JobPosting JSON-LD block.",
+      },
+    },
+    {
+      type: "decision",
+      title: "Degrades after 1st fetch?",
+      detail: {
+        explanation: "Confirmed via a live verification run.",
+        result: "Yes.",
+      },
+    },
+    {
+      type: "problem",
+      title: "PROBLEM - headless session fingerprinted",
+      detail: {
+        explanation: "Only 1/5 detail fetches found a JobPosting block - the other 4 came back with it silently missing, even though re-opening the same URLs in a real (non-headless) browser immediately after showed the block WAS genuinely present. Cloudflare fingerprinted the headless Puppeteer session as automated after its first successful navigation, not a per-vacancy data gap.",
+      },
+    },
+    {
+      type: "solution",
+      title: "FIX v2 - category RSS feed via Axios",
+      detail: {
+        method: "Axios - axios.get() + Cheerio xmlMode",
+        explanation: "The category's RSS feed mirrors the HTML listing 1:1 by slug and isn't Cloudflare-gated at all - one plain request replaces the entire per-vacancy Puppeteer loop.",
+        result: "25/25 vacancies matched and enriched, 0 errors.",
+      },
+    },
+  ],
+
   async crawl(source: CrawlSource): Promise<CrawlResult> {
     const pageUrl = new URL(LISTING_PATH, source.baseUrl).toString();
 

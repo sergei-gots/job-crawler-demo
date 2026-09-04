@@ -1,5 +1,17 @@
 import { getJson } from "@/shared/lib/api";
 
+export type StrategyStepType = "process" | "decision" | "problem" | "solution" | "terminal";
+
+export interface StrategyStep {
+  type: StrategyStepType;
+  title: string;
+  detail?: {
+    method?: string;
+    explanation: string;
+    result?: string;
+  };
+}
+
 export interface Source {
   id: number;
   name: string;
@@ -11,6 +23,10 @@ export interface Source {
   // CrawlStrategy.description in apps/api) rather than a stored classification — null for a
   // source with no implemented strategy yet.
   strategyDescription: string | null;
+  // The step-by-step chain traced through that CrawlStrategy's crawl()/enrichDetails() — see
+  // CrawlStrategy.steps in apps/api. A generic 2-step fallback for a source with no implemented
+  // strategy yet (never empty).
+  strategySteps: StrategyStep[];
 }
 
 export async function getSources(token: string): Promise<Source[]> {

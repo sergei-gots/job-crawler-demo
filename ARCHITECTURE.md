@@ -100,7 +100,7 @@
 | createdAt        | timestamp     |                                                     |
 | updatedAt        | timestamp     |                                                     |
 
-There is deliberately no stored `type`/technology field. Which library each strategy uses (Axios+Cheerio vs. Puppeteer) is fully determined by the `CrawlStrategy` module dispatched for that source (`crawler/index.ts`'s `getStrategy`) — a separate DB column repeating that fact could drift from the code without anything catching it (and did, for `weworkremotely` mid-Increment 6, before the column was removed). The API instead computes a `strategyDescription: string | null` per source at response time straight from `CrawlStrategy.description` (a field on the strategy object itself, living next to the `crawl()`/`enrichDetails()` it describes) — `null` for a source with no implemented strategy yet.
+There is deliberately no stored `type`/technology field. Which library each strategy uses (Axios+Cheerio vs. Puppeteer) is fully determined by the `CrawlStrategy` module dispatched for that source (`crawler/index.ts`'s `getStrategy`) — a separate DB column repeating that fact could drift from the code without anything catching it (and did, for `weworkremotely` mid-Increment 6, before the column was removed). The API instead computes a `strategyDescription: string | null` per source at response time straight from `CrawlStrategy.description` (a field on the strategy object itself, living next to the `crawl()`/`enrichDetails()` it describes) — `null` for a source with no implemented strategy yet. The same pattern extends to `strategySteps: StrategyStep[]` (from `CrawlStrategy.steps`, Increment 7) — the step-by-step chain (what was tried, what broke, what fixed it) rendered as an in-app flowchart on the Source detail page and the Sources list's "Strategies" comparison panel; a source with no strategy gets a small generic 2-step fallback ("crawl triggered" → "not implemented"), not source-specific research prose, which stays in the `data-sources` skill only.
 
 There is also deliberately no `respectRobotsTxt` field anymore — it was removed alongside `type`
 for the same reason: it had zero consumers anywhere in the codebase (not read by any crawl logic,
@@ -167,7 +167,9 @@ they'll be added as part of the increment that actually builds `AIEnricher`.
 
 - **`CrawlStrategy`** (`apps/api/src/crawler/types.ts`) — a required `description: string` (a
   short human-readable summary of how the strategy actually fetches data, surfaced via the API as
-  `strategyDescription` — see the CrawlSource table note above) plus `crawl(source):
+  `strategyDescription` — see the CrawlSource table note above), a required `steps:
+  StrategyStep[]` (the traceable chain of what was tried/broke/fixed, surfaced as
+  `strategySteps` — see `.claude/features/07_FEATURE_STRATEGY_DIAGRAMS.md`) plus `crawl(source):
   Promise<CrawlResult>` and an optional `enrichDetails(source, vacancies, isCancelled,
   logProgress): Promise<EnrichDetailsResult>` for sources that support a second, per-vacancy
   detail-page pass. Chosen per source via `getStrategy(source)`, which dispatches purely on

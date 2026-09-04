@@ -19,7 +19,33 @@ There is no stored `type`/technology field on `CrawlSource` — see "Fetch mecha
 each row's actual mechanism lives in its `CrawlStrategy.description` (in the strategy file itself,
 surfaced via the API as `strategyDescription`), not a separate DB classification that could drift
 from the code (see the `06_FEATURE_WEWORKREMOTELY_AND_VACANCY_CAP.md` "type field" decision for
-why that column was removed mid-Increment-6).
+why that column was removed mid-Increment-6). The same strategy object also carries
+`steps: StrategyStep[]` (Increment 7, surfaced as `strategySteps`) — the step-by-step chain a
+reader would trace through `crawl()`/`enrichDetails()`, rendered as an in-app flowchart.
+
+**`steps` is hand-authored, not derived — it will NOT update itself.** Changing `crawl()`/
+`enrichDetails()` without touching `steps` leaves the diagram silently describing behavior that
+no longer exists (the exact drift risk this field was designed to avoid for the `description`
+field doesn't extend to its *content* staying current over time). So: whenever a `CrawlStrategy`
+file's actual crawling logic changes (a new spike finding, a new fix, a transport swap),
+**explicitly ask the user whether `steps` needs updating before treating the change as done** —
+don't silently update it and don't silently skip it. Update only the specific step(s) that
+describe the part of the mechanism that actually changed — a targeted edit, not a full rewrite of
+the chain, and not a reason to touch unrelated steps that are still accurate. See
+`07_FEATURE_STRATEGY_DIAGRAMS.md`.
+
+**Writing `StrategyStep` content** (`title`/`explanation`/`method`/`result` on each step):
+1. Use only common, generally-understood terms — never a reference to a project-internal or
+   since-removed classification. (Caught live: a step once said "...a reversal of this source's
+   own earlier STATIC finding..." — "STATIC" meant the removed `CrawlSource.type` value, meaningless
+   to a reader with no session history. Don't reintroduce this class of mistake.)
+2. State the confirmed fact, not the authoring process — no "before doing X" / "before trusting
+   Y" filler. Say what was found, not when it was checked during development.
+3. Wrap a non-obvious abbreviation or raw technical value (e.g. a literal HTTP header value) in
+   `{{term}}` and add a matching entry to `apps/web/entities/source/lib/strategy-glossary.ts` —
+   never leave it silently unexplained, and never spell it out inline as a workaround instead of
+   using the tooltip. Well-known technical vocabulary (JSON-LD, RSS, HTML, API) doesn't need
+   this — reserve it for genuinely opaque strings like `cf-mitigated`.
 
 | Key              | Site                     | Status          | Fetch mechanism                                     | Notes                                                        |
 | ---------------- | ------------------------ | --------------- | -------------------------------------------------------------- | ------------------------------------------------------------- |
