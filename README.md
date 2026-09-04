@@ -34,6 +34,7 @@ See `CLAUDE.md` for the full spec and `ARCHITECTURE.md` for data models and comp
   - [Option B — query Elasticsearch directly](#option-b--query-elasticsearch-directly)
   - [Why a run sometimes shows `cache: miss` right after a previous one](#why-a-run-sometimes-shows-cache-miss-right-after-a-previous-one)
 - [Project structure](#project-structure)
+- [Frontend architecture notes](#frontend-architecture-notes)
 
 ## Status: implemented so far
 
@@ -373,8 +374,46 @@ for pages already fetched.
 
 ```
 /apps
-  /api    # Express backend (crawler, AI enrichment, search, auth)
-  /web    # Next.js frontend (Feature-Sliced Design)
+  /api                 # Express backend
+    /src
+      /config
+      /controllers
+      /services
+      /crawler         # crawler framework (Puppeteer + Axios/Cheerio strategies)
+      /ai              # AIEnricher interface, MockAIEnricher, ClaudeEnricher
+      /search          # Coveo-like layer over Elasticsearch
+      /auth            # JWT auth
+      /models          # Postgres models / repositories
+      /routes
+      /utils
+      /workers         # crawl runner / queue consumers
+      /types
+  /web                 # Next.js frontend (FSD)
+    /app               # routing only
+    /widgets           # about, sources, source-detail, search, sidebar
+    /features          # auth, run-crawl, search-vacancies
+    /entities          # session, user, source, vacancy
+    /shared            # ui/, lib/ (api client)
+/docker                # docker-compose + service configs
 ```
 
-See `CLAUDE.md` → Project Structure for the full target layout.
+## Frontend architecture notes
+
+- **Next.js + React** SPA (Single-Page Application: the page loads once, then navigation/updates
+  happen in the browser via JavaScript instead of a full page reload per click), organized with
+  **Feature-Sliced Design (FSD)** — a way of arranging frontend code into layers by *what a piece
+  of code is for* (e.g. a reusable button vs. a page-specific feature vs. a whole page's widget),
+  so that code for one concern doesn't get tangled with code for another. Layers:
+  `app → widgets → features → entities → shared` (see `CLAUDE.md` → Architecture methodologies
+  for the import rule between them).
+  The FSD layer skeleton and the auth building blocks (login/register pages, the
+  `entities/session` slice, the `useRequireAuth` hook, the `shared/lib/api.ts` HTTP client, the
+  `shared/ui` component folder) were carried over from an earlier starting point rather than built
+  from scratch. Everything else — what the app does, its pages/features/entities, and the backend
+  it talks to — is specific to this project: it calls our own Express API.
+- **shadcn/ui** is not an installed npm component library; it's a CLI (configured in
+  `apps/web/components.json`) that generates a component's source code (e.g. `button.tsx`,
+  `card.tsx`) and writes it directly into `apps/web/shared/ui/`. Those files become ordinary
+  project source — owned and freely editable — not files pulled from `node_modules`. The
+  `"ui": "@/shared/ui"` alias in `components.json` is what tells the CLI which folder to write
+  generated components into.

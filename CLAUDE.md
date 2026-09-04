@@ -28,25 +28,17 @@ Create a clean, well-structured MVP that demonstrates the full tech stack: TypeS
 
 ### Frontend (`apps/web`)
 
-- **Next.js + React** — a crawler management console **SPA** (Single-Page Application: the page
-  loads once, then navigation/updates happen in the browser via JavaScript instead of a full page
-  reload per click), organized with **Feature-Sliced Design (FSD)** — a way of arranging frontend
-  code into layers by *what a piece of code is for* (e.g. a reusable button vs. a page-specific
-  feature vs. a whole page's widget), so that code for one concern doesn't get tangled with code
-  for another. The exact layers are listed below in "Architecture methodologies".
-  The FSD layer skeleton and the auth building blocks (login/register pages, the
-  [`entities/session`](apps/web/entities/session) slice, the `useRequireAuth` hook, the
-  [`shared/lib/api.ts`](apps/web/shared/lib/api.ts) HTTP client, the
-  `shared/ui` component folder) were carried over from an earlier starting point rather than
-  built from scratch. Everything else — what the app does, its pages/features/entities, and the
-  backend it talks to — is specific to this project: it calls **our own Express API**.
-- **shadcn/ui** — not an installed npm component library; it's a CLI (configured in
-  [`apps/web/components.json`](apps/web/components.json)) that generates a component's source
-  code (e.g. [`button.tsx`](apps/web/shared/ui/button.tsx), [`card.tsx`](apps/web/shared/ui/card.tsx))
-  and writes it directly into [`apps/web/shared/ui/`](apps/web/shared/ui/). Those files become
-  ordinary project source — owned and freely editable — not files pulled from `node_modules`. The
-  `"ui": "@/shared/ui"` alias in `components.json` is what tells the CLI which folder to write
-  generated components into.
+- **Next.js + React** — a crawler management console SPA, organized with **Feature-Sliced Design
+  (FSD)**: layers `app → widgets → features → entities → shared` (import rule in "Architecture
+  methodologies" below). The FSD skeleton and auth building blocks
+  ([`entities/session`](apps/web/entities/session), `useRequireAuth`,
+  [`shared/lib/api.ts`](apps/web/shared/lib/api.ts), `shared/ui`) were carried over from an
+  earlier starting point; everything else calls our own Express API and is specific to this
+  project. See [`README.md`](README.md#frontend-architecture-notes) for a plain-language
+  explanation of SPA/FSD and how the shadcn/ui CLI writes into `apps/web/shared/ui/`.
+- **shadcn/ui** — CLI-generated component source (e.g.
+  [`button.tsx`](apps/web/shared/ui/button.tsx), [`card.tsx`](apps/web/shared/ui/card.tsx)) in
+  [`apps/web/shared/ui/`](apps/web/shared/ui/) — owned, freely editable, not an npm package.
 
 ### Infrastructure
 
@@ -230,29 +222,5 @@ styling) is in the `ui-design-guidelines` skill
 
 ## Project Structure (Target)
 
-Monorepo with two apps:
-
-```
-/apps
-  /api                 # Express backend
-    /src
-      /config
-      /controllers
-      /services
-      /crawler         # crawler framework (Puppeteer + Axios/Cheerio strategies)
-      /ai              # AIEnricher interface, MockAIEnricher, ClaudeEnricher
-      /search          # Coveo-like layer over Elasticsearch
-      /auth            # JWT auth
-      /models          # Postgres models / repositories
-      /routes
-      /utils
-      /workers         # crawl runner / queue consumers
-      /types
-  /web                 # Next.js frontend (FSD)
-    /app               # routing only
-    /widgets           # about, sources, source-detail, search, sidebar
-    /features          # auth, run-crawl, search-vacancies
-    /entities          # session, user, source, vacancy
-    /shared            # ui/, lib/ (api client)
-/docker                # docker-compose + service configs
-```
+Monorepo with two apps: `apps/api` (Express) and `apps/web` (Next.js, FSD). Full target directory
+layout is in [`README.md`](README.md#project-structure).
