@@ -35,14 +35,16 @@ Create a clean, well-structured MVP that demonstrates the full tech stack: TypeS
   feature vs. a whole page's widget), so that code for one concern doesn't get tangled with code
   for another. The exact layers are listed below in "Architecture methodologies".
   The FSD layer skeleton and the auth building blocks (login/register pages, the
-  `entities/session` slice, the `useRequireAuth` hook, the `shared/lib/api.ts` HTTP client, the
+  [`entities/session`](apps/web/entities/session) slice, the `useRequireAuth` hook, the
+  [`shared/lib/api.ts`](apps/web/shared/lib/api.ts) HTTP client, the
   `shared/ui` component folder) were carried over from an earlier starting point rather than
   built from scratch. Everything else — what the app does, its pages/features/entities, and the
   backend it talks to — is specific to this project: it calls **our own Express API**.
 - **shadcn/ui** — not an installed npm component library; it's a CLI (configured in
-  `apps/web/components.json`) that generates a component's source code (e.g. `button.tsx`,
-  `card.tsx`) and writes it directly into `apps/web/shared/ui/`. Those files become ordinary
-  project source — owned and freely editable — not files pulled from `node_modules`. The
+  [`apps/web/components.json`](apps/web/components.json)) that generates a component's source
+  code (e.g. [`button.tsx`](apps/web/shared/ui/button.tsx), [`card.tsx`](apps/web/shared/ui/card.tsx))
+  and writes it directly into [`apps/web/shared/ui/`](apps/web/shared/ui/). Those files become
+  ordinary project source — owned and freely editable — not files pulled from `node_modules`. The
   `"ui": "@/shared/ui"` alias in `components.json` is what tells the CLI which folder to write
   generated components into.
 
@@ -55,8 +57,9 @@ Create a clean, well-structured MVP that demonstrates the full tech stack: TypeS
 Given the original 2-week timeline, the plan was to do **one source well rather than three done
 thinly**. In practice, the crawler abstraction built for the first source (`habr_career`)
 generalized cleanly to a second, structurally different source (`remoteok`, Increment 4) without
-any changes to `crawlRunner.ts` or the `CrawlStrategy` interface — see
-`04_FEATURE_PUPPETEER_REMOTEOK.md` — so two sources are implemented today. `weworkremotely` and
+any changes to [`crawlRunner.ts`](apps/api/src/crawler/crawlRunner.ts) or the `CrawlStrategy`
+interface — see [`04_FEATURE_PUPPETEER_REMOTEOK.md`](.claude/features/04_FEATURE_PUPPETEER_REMOTEOK.md)
+— so two sources are implemented today. `weworkremotely` and
 `craigslist` remain deferred: they're seeded as selectable `CrawlSource` rows, but have no parser
 yet (see below).
 
@@ -74,19 +77,22 @@ and `weworkremotely` above.
 `weworkremotely` and `craigslist` are deferred — add them later as additional `CrawlStrategy`
 adapters if time allows, without changing the crawler architecture.
 
-All four are already seeded as `CrawlSource` rows (`apps/api/prisma/seed.ts`) so they're
-selectable on the Sources page. `habr_career` and `remoteok` have real `CrawlStrategy`
-implementations (`habrCareerStrategy.ts` — Axios+Cheerio, listing crawl plus per-vacancy detail
-crawl; `remoteOkStrategy.ts` — Puppeteer, listing crawl only — see the "Real crawler...", "Vacancy
-detail crawl...", and "Puppeteer RemoteOK..." features in `.claude/features/`); `weworkremotely`
-and `craigslist` don't have a parser yet, so triggering a crawl for them (or using "crawl all")
-logs a `WARN` and skips them rather than failing the run. Strategy files are named after the site
-they crawl (`<siteKeyCamelCase>Strategy.ts`), not the library used to fetch/parse it — the
-fetch/parse technology (Axios+Cheerio vs. Puppeteer) is an implementation detail internal to each
-file. Dispatch (`getStrategy` in `apps/api/src/crawler/index.ts`) is by `CrawlSource.name`, not by
-`CrawlSource.type` — `type` only signals "needs a browser or not," it doesn't imply every source
-of the same type can share one strategy's selectors/navigation. Crawling is triggered directly per
-source via `POST /sources/:id/crawl` — see `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`
+All four are already seeded as `CrawlSource` rows ([`apps/api/prisma/seed.ts`](apps/api/prisma/seed.ts))
+so they're selectable on the Sources page. `habr_career` and `remoteok` have real `CrawlStrategy`
+implementations ([`habrCareerStrategy.ts`](apps/api/src/crawler/strategies/habrCareerStrategy.ts)
+— Axios+Cheerio, listing crawl plus per-vacancy detail crawl;
+[`remoteOkStrategy.ts`](apps/api/src/crawler/strategies/remoteOkStrategy.ts) — Puppeteer, listing
+crawl only — see the "Real crawler...", "Vacancy detail crawl...", and "Puppeteer RemoteOK..."
+features in [`.claude/features/`](.claude/features/)); `weworkremotely` and `craigslist` don't
+have a parser yet, so triggering a crawl for them (or using "crawl all") logs a `WARN` and skips
+them rather than failing the run. Strategy files are named after the site they crawl
+(`<siteKeyCamelCase>Strategy.ts`), not the library used to fetch/parse it — the fetch/parse
+technology (Axios+Cheerio vs. Puppeteer) is an implementation detail internal to each file.
+Dispatch (`getStrategy` in [`apps/api/src/crawler/index.ts`](apps/api/src/crawler/index.ts)) is by
+`CrawlSource.name`, not by `CrawlSource.type` — `type` only signals "needs a browser or not," it
+doesn't imply every source of the same type can share one strategy's selectors/navigation.
+Crawling is triggered directly per source via `POST /sources/:id/crawl` — see
+[`.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`](.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md)
 — there is no separate job entity that picks which sources to run.
 
 For each source we define: `type` (`STATIC`/`DYNAMIC` — determines Axios+Cheerio vs Puppeteer),
@@ -118,16 +124,17 @@ the `CrawlSource` itself; there's no separate per-run configuration. Always resp
 - Use meaningful commit messages in English; work in feature branches; keep `main` stable;
   commit often, push regularly. All code in English.
 - Full commit/PR conventions (who drafts the PR description, review checklist requirements, the
-  no-auto-merge rule) are in the `git-workflow` skill (`.claude/skills/git-workflow/SKILL.md`) —
+  no-auto-merge rule) are in the `git-workflow` skill
+  ([`.claude/skills/git-workflow/SKILL.md`](.claude/skills/git-workflow/SKILL.md)) —
   Claude Code loads it automatically when committing or opening a PR.
 
 ### Feature design docs (`.claude/features/`)
 
-Every non-trivial feature or increment gets a design doc in `.claude/features/`, written (or
-updated) as part of that work — not after; it's the durable record of **why** behind the code.
-Naming convention, required contents, and sync rules are in the `feature-design-docs` skill
-(`.claude/skills/feature-design-docs/SKILL.md`) — Claude Code loads it when starting or updating
-a feature doc.
+Every non-trivial feature or increment gets a design doc in [`.claude/features/`](.claude/features/),
+written (or updated) as part of that work — not after; it's the durable record of **why** behind
+the code. Naming convention, required contents, and sync rules are in the `feature-design-docs`
+skill ([`.claude/skills/feature-design-docs/SKILL.md`](.claude/skills/feature-design-docs/SKILL.md))
+— Claude Code loads it when starting or updating a feature doc.
 
 ## User Stories (MVP)
 
@@ -146,7 +153,7 @@ As a user I can:
 
 ## Data Models (summary)
 
-Full field definitions live in `ARCHITECTURE.md`. Core entities:
+Full field definitions live in [`ARCHITECTURE.md`](ARCHITECTURE.md). Core entities:
 
 - **User** — PostgreSQL. Authentication only — see Security Considerations for why crawling and
   search have no per-user ownership.
@@ -165,7 +172,8 @@ Full field definitions live in `ARCHITECTURE.md`. Core entities:
   (`upsertVacancy` is idempotent by `sourceId:externalId`). PostgreSQL holds the authoritative
   records (users, sources, crawl runs/logs).
 - **Search-index schema changes are handled through index versioning, not in-place migration.**
-  `crawlerResultsIndex.ts` exports `CRAWLER_RESULTS_SCHEMA_VERSION`, stamped into the index
+  [`crawlerResultsIndex.ts`](apps/api/src/search/crawlerResultsIndex.ts) exports
+  `CRAWLER_RESULTS_SCHEMA_VERSION`, stamped into the index
   mapping's `_meta`. `ensureCrawlerResultsIndex` compares the live index's stored version and, on a
   mismatch, deletes + recreates the index empty and lets the next crawl repopulate it. Bump the
   constant whenever the mapping changes in a way existing docs won't satisfy (new field, changed
@@ -173,16 +181,18 @@ Full field definitions live in `ARCHITECTURE.md`. Core entities:
 - **Rebuilding the search index does not affect crawl history or primary data.** A version-mismatch
   rebuild touches only the ES index; `CrawlRun`/`CrawlLog` and all other Postgres records are left
   untouched. (The admin "Clear search data" action is the separate, heavier operation that also
-  wipes `CrawlRun` history — see `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`.)
+  wipes `CrawlRun` history — see
+  [`.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`](.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md).)
 
 ## Technical Guidelines & Axioms
 
 - All code, documentation, comments, variable names, function names, folder names, and UI text must be in **English**.
 - The entire project interface and user-facing content should be in English.
 - Russian can only be used in personal development notes (`.notes/`, git-ignored), and in
-  `.claude/doc/` — a deliberate, tracked exception: that directory holds Sergei's personal
-  learning/presentation write-ups of the tech stack, not project or user-facing documentation.
-  See `.claude/doc/CLAUDE.md` for the conventions governing that directory.
+  [`.claude/doc/`](.claude/doc/) — a deliberate, tracked exception: that directory holds Sergei's
+  personal learning/presentation write-ups of the tech stack, not project or user-facing
+  documentation. See [`.claude/doc/CLAUDE.md`](.claude/doc/CLAUDE.md) for the conventions
+  governing that directory.
 - Crawling is global, not scoped to a user — see Security Considerations.
 - Respect `robots.txt` and implement rate limiting (via Redis).
 - Puppeteer vs Axios/Cheerio is chosen per source (`CrawlSource.type`), never a per-run setting.
@@ -190,8 +200,8 @@ Full field definitions live in `ARCHITECTURE.md`. Core entities:
 - Keep the architecture modular and easy to extend.
 - Prefer simplicity for MVP (avoid over-engineering).
 - Whenever a step changes, adds to, or invalidates something described in `CLAUDE.md`,
-  `README.md`, or `ARCHITECTURE.md`, update the affected file(s) as part of that step —
-  don't let the docs drift out of sync with the code.
+  [`README.md`](README.md), or [`ARCHITECTURE.md`](ARCHITECTURE.md), update the affected file(s)
+  as part of that step — don't let the docs drift out of sync with the code.
 
 ## Security Considerations
 
@@ -204,8 +214,8 @@ Full field definitions live in `ARCHITECTURE.md`. Core entities:
   the source from abuse (repeated/overlapping crawl requests), not per-user gating.
 - **No RBAC yet.** A production deployment would gate crawl-triggering behind an admin role; this
   MVP deliberately treats every logged-in user as trusted to trigger crawls — see
-  `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md` for why this was deferred rather than
-  built now.
+  [`.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`](.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md)
+  for why this was deferred rather than built now.
 - **Search is read-only and unscoped** — the search endpoint returns matches from the whole
   shared corpus; there's nothing to authorize per-result since nothing is owned per user.
 - Client-side restrictions (disabled buttons while a crawl is `RUNNING`) are UX only —
@@ -234,7 +244,8 @@ Reference screenshots live in `.claude/.design-samples/` (git-ignored, local-onl
 samples as the default visual language; introduce new patterns only when the workflow requires
 them. The full set of layout/typography/color/component conventions (cards, design tokens,
 typography hierarchy, button color hierarchy, links, dashes, log coloring, destructive-action
-styling) is in the `ui-design-guidelines` skill (`.claude/skills/ui-design-guidelines/SKILL.md`)
+styling) is in the `ui-design-guidelines` skill
+([`.claude/skills/ui-design-guidelines/SKILL.md`](.claude/skills/ui-design-guidelines/SKILL.md))
 — Claude Code loads it automatically when writing or editing `apps/web` UI code.
 
 ## Testing Philosophy
@@ -242,7 +253,8 @@ styling) is in the `ui-design-guidelines` skill (`.claude/skills/ui-design-guide
 - Primary testing method: **manual testing** through the browser; automated tests (if any) are
   added later for critical paths and regression.
 - Full testing goals, the "before marking Done" checklist requirement, and the browser-automation
-  policy are in the `testing-philosophy` skill (`.claude/skills/testing-philosophy/SKILL.md`).
+  policy are in the `testing-philosophy` skill
+  ([`.claude/skills/testing-philosophy/SKILL.md`](.claude/skills/testing-philosophy/SKILL.md)).
 
 ## Project Structure (Target)
 
