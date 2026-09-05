@@ -32,7 +32,9 @@ const sources: {
   },
   {
     name: "Craigslist",
-    baseUrl: "https://craigslist.org",
+    // Must be the "www" host - the bare apex domain 404s on /search/area/... (it only serves a
+    // geo-redirect page at /area/<country>), confirmed live 2026-09-05.
+    baseUrl: "https://www.craigslist.org",
     defaultDelayMs: 11000,
     maxVacanciesToCrawl: 25,
   },
@@ -40,10 +42,10 @@ const sources: {
 
 // Named, independently-crawlable sub-targets within a source (see .claude/features/
 // 09_FEATURE_CRAWL_LISTINGS.md) — additive only, most sources have none. subPath is resolved
-// against the parent source's baseUrl by weWorkRemotelyStrategy.ts, not stored as an absolute
-// URL, so the same seed entry still works if baseUrl ever changes. Each entry's HTML listing and
-// matching .rss feed are live-verified before being added here, per this project's standing rule
-// of never seeding an unverified selector/URL.
+// against the parent source's baseUrl by weWorkRemotelyStrategy.ts/craigslistStrategy.ts, not
+// stored as an absolute URL, so the same seed entry still works if baseUrl ever changes. Each
+// entry's target URL (and, for WWR, its matching .rss feed) is live-verified before being added
+// here, per this project's standing rule of never seeding an unverified selector/URL.
 const listings: { sourceName: string; label: string; subPath: string }[] = [
   {
     sourceName: "WeWorkRemotely",
@@ -54,6 +56,35 @@ const listings: { sourceName: string; label: string; subPath: string }[] = [
     sourceName: "WeWorkRemotely",
     label: "Backend",
     subPath: "/categories/remote-back-end-programming-jobs",
+  },
+  // cat=sof is craigslist's "software / qa / dba / etc" job category - the tech-relevant slice of
+  // an otherwise general-purpose classifieds site (see .claude/features/10_FEATURE_CRAIGSLIST.md).
+  // Cities are limited to ones with confirmed non-zero live results as of 2026-09-05; e.g. austin
+  // was checked and excluded for returning zero.
+  {
+    sourceName: "Craigslist",
+    label: "SF Bay Area",
+    subPath: "/search/area/sfbay?cat=sof",
+  },
+  {
+    sourceName: "Craigslist",
+    label: "New York",
+    subPath: "/search/area/newyork?cat=sof",
+  },
+  {
+    sourceName: "Craigslist",
+    label: "Seattle",
+    subPath: "/search/area/seattle?cat=sof",
+  },
+  {
+    sourceName: "Craigslist",
+    label: "Los Angeles",
+    subPath: "/search/area/losangeles?cat=sof",
+  },
+  {
+    sourceName: "Craigslist",
+    label: "Chicago",
+    subPath: "/search/area/chicago?cat=sof",
   },
 ];
 

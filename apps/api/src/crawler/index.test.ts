@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CrawlSource } from "@prisma/client";
 import { getStrategy } from "./index.js";
+import { craigslistStrategy } from "./strategies/craigslistStrategy.js";
 import { habrCareerStrategy } from "./strategies/habrCareerStrategy.js";
 import { remoteOkStrategy } from "./strategies/remoteOkStrategy.js";
 import { weWorkRemotelyStrategy } from "./strategies/weWorkRemotelyStrategy.js";
@@ -22,7 +23,11 @@ describe("getStrategy", () => {
     expect(getStrategy(sourceNamed("WeWorkRemotely"))).toBe(weWorkRemotelyStrategy);
   });
 
+  it("returns the craigslist strategy for \"Craigslist\"", () => {
+    expect(getStrategy(sourceNamed("Craigslist"))).toBe(craigslistStrategy);
+  });
+
   it("returns null for a source with no implemented strategy", () => {
-    expect(getStrategy(sourceNamed("Craigslist"))).toBeNull();
+    expect(getStrategy(sourceNamed("Some Unimplemented Source"))).toBeNull();
   });
 });

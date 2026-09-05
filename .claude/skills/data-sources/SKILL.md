@@ -7,13 +7,20 @@ description: Use when adding, editing, or discussing a crawl source or CrawlStra
 
 Given the original 2-week timeline, the plan was to do **one source well rather than three done
 thinly**. In practice, the crawler abstraction built for the first source (`habr_career`)
-generalized cleanly to two structurally different sources (`remoteok`, Increment 4, and
-`weworkremotely`, Increment 6) without any changes to
+generalized cleanly to three structurally different sources (`remoteok`, Increment 4;
+`weworkremotely`, Increment 6; `craigslist`, Increment 10) without any changes to
 [`crawlRunner.ts`](/apps/api/src/crawler/crawlRunner.ts) or the `CrawlStrategy` interface — see
-[`04_FEATURE_PUPPETEER_REMOTEOK.md`](/.claude/features/04_FEATURE_PUPPETEER_REMOTEOK.md) and
-[`06_FEATURE_WEWORKREMOTELY_AND_VACANCY_CAP.md`](/.claude/features/06_FEATURE_WEWORKREMOTELY_AND_VACANCY_CAP.md)
-— so three sources are implemented today. `craigslist` remains deferred: it's seeded as a
-selectable `CrawlSource` row, but has no parser yet (see below).
+[`04_FEATURE_PUPPETEER_REMOTEOK.md`](/.claude/features/04_FEATURE_PUPPETEER_REMOTEOK.md),
+[`06_FEATURE_WEWORKREMOTELY_AND_VACANCY_CAP.md`](/.claude/features/06_FEATURE_WEWORKREMOTELY_AND_VACANCY_CAP.md),
+and [`10_FEATURE_CRAIGSLIST.md`](/.claude/features/10_FEATURE_CRAIGSLIST.md) — so all four seeded
+sources are implemented today.
+
+This app aggregates **developer/tech vacancies specifically, not vacancies in general** — every
+source is scoped to that either "for free" (`habr_career`, `remoteok` are tech-only sites by
+nature; `weworkremotely`'s seeded categories are programming-only) or, for a general-purpose
+source like `craigslist`, by an explicit crawl-time filter (`cat=sof`, craigslist's own
+"software/qa/dba" category). Any future general-purpose source must be scoped to tech/dev roles
+the same way.
 
 There is no stored `type`/technology field on `CrawlSource` — see "Fetch mechanism" notes below;
 each row's actual mechanism lives in its `CrawlStrategy.description` (in the strategy file itself,
@@ -52,28 +59,25 @@ the chain, and not a reason to touch unrelated steps that are still accurate. Se
 | `habr_career`    | [career.habr.com](https://career.habr.com)          | **Implemented** (Increment 1–2.2) | Axios + Cheerio, listing and detail pages — confirmed fully server-rendered, no Puppeteer needed | RU tech jobs; good fit for AI skill-extraction demo |
 | `remoteok`       | [remoteok.com](https://remoteok.com)             | **Implemented** (Increment 4) | Puppeteer, listing only — confirmed the site returns `403` on a plain non-browser request (Cloudflare bot check); crawled with a real desktop-Chrome UA, not a bot-identifying string, to get past the wall | Tech jobs with ready-made skill tags; listing page alone carries everything needed (description, tags) via per-row JSON-LD, so no detail-page crawl. `baseSalary`/location in that JSON-LD are boilerplate placeholders (identical across every row), not real per-employer data — not stored, same reasoning as habr's dropped salary field; replaces `moikrug` |
 | `weworkremotely` | [weworkremotely.com](https://weworkremotely.com)       | **Implemented** (Increment 6) | Puppeteer for the listing (Cloudflare-gated — confirmed live 2026-09-04, `403` with `cf-mitigated: challenge` on plain curl/axios requests even with a realistic UA, on both the listing and detail page types) + the category's RSS feed via plain Axios for detail enrichment. The original design put both listing and detail through Puppeteer; a live run found headless Puppeteer got fingerprinted/degraded after the first successful detail-page navigation (1/5 succeeded) even though the pages themselves were fine when re-checked in a real browser — the RSS feed for the same category mirrors the HTML listing 1:1 by slug and isn't Cloudflare-gated at all, so it replaced the Puppeteer detail-page loop entirely | Category listing has no real pagination (`?page=2` returns identical rows to `?page=1`, both for the HTML page and its matching RSS feed) — bounded instead by `maxVacanciesToCrawl`, which is a ceiling on the category's current live posting count (~120), not a way to reach a deeper archive. As of Increment 9 the target URL comes from a `CrawlListing.subPath`, not a hardcoded constant — currently two seeded listings, `Full-Stack` → `/categories/remote-full-stack-programming-jobs` and `Backend` → `/categories/remote-back-end-programming-jobs` (see `.claude/features/09_FEATURE_CRAWL_LISTINGS.md`); adding another category means live-verifying its slug (and matching `.rss` feed) first, same as these were, then adding a seed entry |
-| `craigslist`     | [craigslist.org](https://craigslist.org) (SW jobs) | Deferred, no parser yet | Listings are server-rendered and accessible without login on a single request, but craigslist has a documented history of legal/technical enforcement against scrapers (e.g. the 3taps/PadMapper case); expect rate-limiting or CAPTCHA under sustained automated access even though a one-off check looks simple | International example, multiple cities |
+| `craigslist`     | [craigslist.org](https://craigslist.org) (SW jobs) | **Implemented** (Increment 10) | Axios + Cheerio, listing and detail pages — confirmed live 2026-09-05: fully server-rendered, no Cloudflare challenge or CAPTCHA anywhere, and `robots.txt` doesn't disallow `/search/` or `/view/`. (An earlier assumption in this doc expected rate-limiting/CAPTCHA based on craigslist's documented history against scrapers, e.g. the 3taps/PadMapper case — that assumption was never actually checked against the live site until now, and today's spike found no such wall for the paths this strategy hits) | International classifieds site, scoped to the `cat=sof` ("software/qa/dba") category — one `CrawlListing` per city (`sfbay`/`newyork`/`seattle`/`losangeles`/`chicago`), no role/query split (measured city×role cells were mostly 0-1 results). `company`/`postedAt` are detail-page-only fields (unlike habr, where `postedAt` comes from the listing); `$0` listing price is a boilerplate placeholder, not stored, same precedent as habr's dropped salary |
 
 `moikrug` is gone as a distinct source — `moikrug.ru` now permanently redirects (301, both
 `robots.txt` and the site itself) to `career.habr.com`; Habr absorbed it. Replaced by `remoteok`
 and `weworkremotely` above.
 
-`craigslist` is deferred — add it later as an additional `CrawlStrategy` adapter if time allows,
-without changing the crawler architecture.
-
 All four are already seeded as `CrawlSource` rows ([`apps/api/prisma/seed.ts`](/apps/api/prisma/seed.ts))
-so they're selectable on the Sources page. `habr_career`, `remoteok`, and `weworkremotely` have
-real `CrawlStrategy` implementations
+so they're selectable on the Sources page, and all four have real `CrawlStrategy` implementations
 ([`habrCareerStrategy.ts`](/apps/api/src/crawler/strategies/habrCareerStrategy.ts) — Axios+Cheerio,
 listing crawl plus per-vacancy detail crawl;
 [`remoteOkStrategy.ts`](/apps/api/src/crawler/strategies/remoteOkStrategy.ts) — Puppeteer, listing
 crawl only;
 [`weWorkRemotelyStrategy.ts`](/apps/api/src/crawler/strategies/weWorkRemotelyStrategy.ts) —
-Puppeteer for the listing, RSS feed via Axios for detail enrichment (see table above for why) —
-see the "Real crawler...", "Vacancy detail crawl...", "Puppeteer RemoteOK...", and "WeWorkRemotely
-and vacancy cap..." features in [`/.claude/features/`](/.claude/features/)); `craigslist` doesn't
-have a parser yet, so triggering a crawl for it (or using "crawl all") logs a `WARN` and skips it
-rather than failing the run. Strategy files are named after the site they crawl
+Puppeteer for the listing, RSS feed via Axios for detail enrichment (see table above for why);
+[`craigslistStrategy.ts`](/apps/api/src/crawler/strategies/craigslistStrategy.ts) — Axios+Cheerio,
+listing crawl plus per-vacancy detail crawl, one city `CrawlListing` per run — see the "Real
+crawler...", "Vacancy detail crawl...", "Puppeteer RemoteOK...", "WeWorkRemotely and vacancy
+cap...", and "Craigslist..." features in [`/.claude/features/`](/.claude/features/)). Strategy
+files are named after the site they crawl
 (`<siteKeyCamelCase>Strategy.ts`), not the library used to fetch/parse it — the fetch/parse
 technology is an implementation detail internal to each file, surfaced to the UI via
 `CrawlStrategy.description` (see ARCHITECTURE.md's CrawlSource notes) rather than a stored

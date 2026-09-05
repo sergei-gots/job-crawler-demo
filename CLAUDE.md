@@ -48,12 +48,18 @@ with Puppeteer, Elasticsearch, Redis, AI enrichment, and user personalization.
 
 ## Data Sources
 
-`habr_career`, `remoteok`, and `weworkremotely` have working `CrawlStrategy` implementations;
-`craigslist` is seeded but deferred (no parser yet — crawling it logs a `WARN` and skips rather
-than failing). Each source's `defaultDelayMs`, base URL, and `maxVacanciesToCrawl` live on the
-`CrawlSource` row itself ([`apps/api/prisma/seed.ts`](apps/api/prisma/seed.ts)) — there's no
-separate per-run configuration. There is no stored fetch-mechanism field — which library a source
-uses (Axios+Cheerio vs. Puppeteer) is defined by its `CrawlStrategy` module and surfaced to the UI
+This app aggregates **developer/tech vacancies specifically, not vacancies in general**. Every
+source is scoped to that either "for free" (`habr_career`/`remoteok` are tech-only sites by
+nature, `weworkremotely`'s seeded categories are programming-only) or, for a general-purpose site
+like `craigslist`, via an explicit crawl-time category filter (`cat=sof`). Any future
+general-purpose source must be scoped to tech/dev roles the same way.
+
+All four seeded sources — `habr_career`, `remoteok`, `weworkremotely`, and `craigslist` — have
+working `CrawlStrategy` implementations. Each source's `defaultDelayMs`, base URL, and
+`maxVacanciesToCrawl` live on the `CrawlSource` row itself
+([`apps/api/prisma/seed.ts`](apps/api/prisma/seed.ts)) — there's no separate per-run
+configuration. There is no stored fetch-mechanism field — which library a source uses
+(Axios+Cheerio vs. Puppeteer) is defined by its `CrawlStrategy` module and surfaced to the UI
 via that strategy's own `description`, not a separate DB classification that could drift from it.
 
 | Key | Site | Status | Fetch mechanism |
@@ -61,7 +67,7 @@ via that strategy's own `description`, not a separate DB classification that cou
 | `habr_career` | [career.habr.com](https://career.habr.com) | Implemented | Axios+Cheerio |
 | `remoteok` | [remoteok.com](https://remoteok.com) | Implemented | Puppeteer (listing only) |
 | `weworkremotely` | [weworkremotely.com](https://weworkremotely.com) | Implemented | Puppeteer (listing) + RSS via Axios (detail) |
-| `craigslist` | [craigslist.org](https://craigslist.org) | Deferred, no parser | — |
+| `craigslist` | [craigslist.org](https://craigslist.org) | Implemented | Axios+Cheerio (multi-city `CrawlListing` fan-out, `cat=sof` category) |
 
 Full per-source rationale (why each strategy, robots.txt/Cloudflare findings, the retired
 `moikrug` → Habr redirect) is in the `data-sources` skill

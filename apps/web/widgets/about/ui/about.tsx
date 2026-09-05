@@ -34,8 +34,8 @@ export function About() {
               >
                 Job-Crawler-Demo
               </a>{" "}
-              - a modular demonstration web application showcasing a modern web crawling and data
-              processing stack.
+              - a modular demonstration web application that crawls and aggregates developer/tech
+              job vacancies, showcasing a modern web crawling and data processing stack.
             </CardDescription>
           </CardHeader>
           <CardContent>
