@@ -28,14 +28,15 @@ export function ChangePasswordForm({ token }: ChangePasswordFormProps) {
     formState: { errors, isSubmitting },
   } = useForm<ChangePasswordFormValues>({ resolver: zodResolver(changePasswordSchema) });
 
-  // Enabled purely on length, independent of the full schema (which also requires a non-empty
-  // currentPassword and a newPassword/confirmNewPassword match) - a quick, cheap "there's enough
-  // here to be worth trying" gate rather than a full live-validity check on every keystroke; the
-  // schema's own error messages still catch a missing currentPassword or a mismatch on submit.
+  // Enabled once new/confirm are both long enough AND match, independent of the full schema
+  // (which also requires a non-empty currentPassword) - a quick, cheap "there's enough here to be
+  // worth trying" gate rather than a full live-validity check on every keystroke; the schema's own
+  // error message still catches a missing currentPassword on submit.
   const [newPassword, confirmNewPassword] = watch(["newPassword", "confirmNewPassword"]);
   const canSubmit =
     (newPassword?.length ?? 0) >= MIN_PASSWORD_LENGTH &&
-    (confirmNewPassword?.length ?? 0) >= MIN_PASSWORD_LENGTH;
+    (confirmNewPassword?.length ?? 0) >= MIN_PASSWORD_LENGTH &&
+    newPassword === confirmNewPassword;
 
   async function onSubmit(values: ChangePasswordFormValues) {
     setServerError(null);
