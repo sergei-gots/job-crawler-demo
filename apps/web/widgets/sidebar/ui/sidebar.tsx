@@ -1,5 +1,6 @@
 "use client";
 
+import { User } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useSyncExternalStore } from "react";
@@ -42,15 +43,11 @@ export function Sidebar() {
   return (
     <aside className="flex w-full flex-col gap-4 border-b p-4 md:w-56 md:border-b-0 md:border-r">
       <Card size="sm">
-        <CardContent className="flex min-w-0 flex-col gap-0.5">
+        <CardContent className="flex min-w-0 items-center gap-2">
+          <User className="size-4 shrink-0 text-muted-foreground" />
           <p className="truncate text-sm font-medium" title={displayName ?? undefined}>
             {displayName ?? "Loading..."}
           </p>
-          {user && (
-            <p className="truncate text-sm text-muted-foreground" title={user.email}>
-              {user.email}
-            </p>
-          )}
         </CardContent>
       </Card>
       <Card size="sm">

@@ -20,11 +20,16 @@ description: Use when creating commits or preparing/opening a pull request for t
 - **No automatic merges, ever.** Every change lands on a feature branch and goes through a PR;
   `main` only moves when the user reviews and merges it themselves. Claude never merges a PR,
   even if asked to "just finish it up" — merging is always a manual, explicit user action.
-- Every PR description must include, in full: (1) a step-by-step account of what was actually
-  done (not just a summary — enough detail that the user can follow the reasoning without
-  re-reading the diff), and (2) a **review checklist** of concrete things the user should verify
-  before merging (commands to run, URLs to open, edge cases to try, anything not covered by
-  automated checks).
+- **PR descriptions are short.** A squash-merge only carries the *commit* message onto `main`
+  (confirmed: a merged PR's own body text does not appear in `git log` on `main`, only the commit
+  message does) — the PR itself isn't lost either way (GitHub keeps merged PRs permanently,
+  browsable by number/URL), but a long PR body's only real audience is the user reviewing it right
+  before clicking merge. So: put the "why" in the **commit message** (this already happens per the
+  message-drafting guidance above, and that's what's permanent in `git log`), and keep the **PR
+  body** to a brief summary (a few bullets of what changed) plus a short **test plan** (commands
+  run, what was verified live, anything not covered by automated checks) — not a full step-by-step
+  narrative or a formal review checklist by default. Expand it only if the user asks for more
+  detail on a specific PR.
 - **Branch cleanup after a merge is split**: once a PR is merged and `main` is updated (e.g. during
   an explicit "update/rebase"), Claude deletes the now-merged **local** feature branch
   (`git branch -d`) as a normal part of that step. The **remote/GitHub** branch is the user's to
