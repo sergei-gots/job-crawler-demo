@@ -169,6 +169,15 @@ Elasticsearch — no change in Phase 3a. Phase 3b adds fields/mappings (see belo
   consistent with how every other facet renders (a checkbox group with per-bucket counts) rather
   than a special-cased single boolean control. Both selected (or neither) means no `isRemote`
   filter is applied.
+  - **Update (2026-09-05)**: "both selected means no filter" was the stated intent here but wasn't
+    actually implemented that way — the query builder pushed a `terms: { isRemote: [true, false] }`
+    filter whenever *any* value was selected, which excludes documents missing the field entirely
+    rather than matching everything. This went unnoticed until Craigslist's strategy (Increment 10)
+    introduced the first source that deliberately never sets `isRemote` at all — checking both boxes
+    silently dropped every Craigslist vacancy from results. Fixed in `queryVacancies.ts`: the filter
+    is now only applied when exactly one value is selected, so "both" and "neither" both correctly
+    mean "everything, including isRemote-unset docs." Covered by a new `queryVacancies.test.ts`
+    (previously this query builder had no unit tests at all, unlike `suggestVacancies`).
 - **Pagination: server-side `from`/`size` returning a real `total`** (revised 2026-08-07 during
   code review — supersedes the original "fetch `size: 200` and paginate client-side" plan). The
   original plan capped hits at 200 while the facet aggregations counted the *whole* filtered match
@@ -236,7 +245,16 @@ Elasticsearch — no change in Phase 3a. Phase 3b adds fields/mappings (see belo
     facet UI.
   - *Known simplification to note in the PR*: proper faceted navigation computes each facet's counts
     excluding its own active selection (ES `post_filter` / per-facet filtered aggs). MVP does the
-    simpler shared-filter version; flag it as a deliberate simplification, not a bug.
+    simpler shared-filter version; flag it as a deliberate simplification, not a bug. Still true as
+    of the 2026-09-05 facet fixes below — not addressed in that pass.
+  - **Update (2026-09-05)**: `FACET_AGG_SIZE` (originally a flat `20` for every facet) is now
+    per-field — `company`/`location` are free text sourced from four different crawlers with a much
+    longer tail than the low-cardinality `specialization`/`seniority`/`isRemote` enums, so they were
+    silently capping useful facet values (a matching vacancy's employer/city could exist but never
+    be selectable as a filter once 20+ distinct values existed). Raised to `100` for `company`/
+    `location` only; the other three stay at `20`. Still a cap, not a facet-value search/"show
+    more" — a real fix for that would need a new API parameter and was scoped out as more work than
+    this pass warranted.
 - Put this in a small **search module** (or extend `apps/api/src/search/`) — this is the first real
   piece of the "Coveo-like layer over Elasticsearch" that `CLAUDE.md`/`ARCHITECTURE.md` describe.
 

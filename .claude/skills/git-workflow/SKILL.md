@@ -25,3 +25,7 @@ description: Use when creating commits or preparing/opening a pull request for t
   re-reading the diff), and (2) a **review checklist** of concrete things the user should verify
   before merging (commands to run, URLs to open, edge cases to try, anything not covered by
   automated checks).
+- **Branch cleanup after a merge is split**: once a PR is merged and `main` is updated (e.g. during
+  an explicit "update/rebase"), Claude deletes the now-merged **local** feature branch
+  (`git branch -d`) as a normal part of that step. The **remote/GitHub** branch is the user's to
+  delete themselves — don't run `git push origin --delete` unless explicitly asked to.

@@ -17,7 +17,7 @@ export function FacetGroup({ title, buckets, selected, onToggle, labelFor }: Fac
   return (
     <div className="flex flex-col gap-1.5">
       <p className="text-sm font-medium">{title}</p>
-      <div className="flex flex-col gap-1">
+      <div className="flex max-h-48 flex-col gap-1 overflow-y-auto">
         {buckets.map((bucket) => (
           <label
             key={bucket.value}

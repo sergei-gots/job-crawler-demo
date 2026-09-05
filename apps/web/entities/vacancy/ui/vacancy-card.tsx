@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/shared/ui/button";
+import { cn } from "@/shared/lib/utils";
+import { renderHighlighted } from "../lib/highlight";
 import { vacancyKey } from "../lib/vacancy-key";
 import type { Vacancy } from "../lib/vacancy-types";
 
@@ -15,6 +18,7 @@ interface VacancyCardProps {
  * so the two never drift out of sync with each other. */
 export function VacancyCard({ vacancy, ordinal, isRawExpanded, onToggleRaw }: VacancyCardProps) {
   const key = vacancyKey(vacancy);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
   return (
     <div className="rounded-lg border border-border p-2.5">
@@ -27,7 +31,7 @@ export function VacancyCard({ vacancy, ordinal, isRawExpanded, onToggleRaw }: Va
             rel="noopener noreferrer"
             className="font-medium text-link hover:underline"
           >
-            {vacancy.title}
+            {renderHighlighted(vacancy.title, vacancy.highlight?.title)}
           </a>
         </p>
         {vacancy.isRemote && (
@@ -51,7 +55,7 @@ export function VacancyCard({ vacancy, ordinal, isRawExpanded, onToggleRaw }: Va
         </pre>
       )}
       <p className="mt-1.5 text-xs text-muted-foreground">
-        {vacancy.company ?? "Unknown company"}
+        {vacancy.company ? renderHighlighted(vacancy.company, vacancy.highlight?.company) : "Unknown company"}
         {vacancy.location && ` - ${vacancy.location}`}
         {vacancy.postedAt && ` - posted ${new Date(vacancy.postedAt).toLocaleDateString()}`}
       </p>
@@ -59,7 +63,18 @@ export function VacancyCard({ vacancy, ordinal, isRawExpanded, onToggleRaw }: Va
         <p className="mt-1.5 text-xs text-muted-foreground">{vacancy.skillsSummary}</p>
       )}
       {vacancy.description && (
-        <p className="mt-1.5 line-clamp-2 text-xs text-foreground">{vacancy.description}</p>
+        <div className="mt-1.5">
+          <p className={cn("text-xs text-foreground", !isDescriptionExpanded && "line-clamp-2")}>
+            {renderHighlighted(vacancy.description, vacancy.highlight?.description)}
+          </p>
+          <button
+            type="button"
+            onClick={() => setIsDescriptionExpanded((expanded) => !expanded)}
+            className="mt-0.5 text-xs text-link hover:underline"
+          >
+            {isDescriptionExpanded ? "Show less" : "Show more"}
+          </button>
+        </div>
       )}
     </div>
   );
