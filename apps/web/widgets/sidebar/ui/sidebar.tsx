@@ -46,11 +46,6 @@ export function Sidebar() {
           <p className="truncate text-sm font-medium" title={displayName ?? undefined}>
             {displayName ?? "Loading..."}
           </p>
-          {user && (
-            <p className="truncate text-sm text-muted-foreground" title={user.email}>
-              {user.email}
-            </p>
-          )}
         </CardContent>
       </Card>
       <Card size="sm">

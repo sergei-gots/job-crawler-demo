@@ -23,9 +23,37 @@ requires them.
 - **Boxed sections, not flat lists.** Any logically distinct block of UI (a form, the sidebar's
   user info, the sidebar's nav) is wrapped in [`shared/ui/card.tsx`](/apps/web/shared/ui/card.tsx)'s
   `Card`/`CardHeader`/`CardTitle`/`CardDescription`/`CardContent` — not a bare `<div>`.
-- **Separate cards, not dividers.** When two related sections sit in the same column (e.g. "Account
-  details" and "Change password"), separate them with layout spacing (`gap-6` on the parent) —
-  not a visible `<hr>` rule line.
+- **Separate cards, not dividers.** When two or more related but independently-viewable sections
+  sit in the same column (e.g. the Sources page's "Predefined data sources" and "Strategies"
+  panels), separate them with layout spacing (`gap-6` on the parent) — not a visible `<hr>` rule
+  line.
+- **Tabs for mutually-exclusive views of one entity, not a vertical stack of collapsible cards.**
+  [`shared/ui/tabs.tsx`](/apps/web/shared/ui/tabs.tsx) (`Tabs`/`TabsList`/`TabsTab`/`TabsPanel`,
+  built on the already-a-dependency `@base-ui/react/tabs`) is for when a page has several sections
+  that represent alternate looks at the *same* thing and are naturally viewed one at a time — e.g.
+  the Source detail page's Strategy/Logs/Vacancies (a source's applied strategy, its latest run's
+  logs, and its collected vacancies are three views of that one source, in that order — Strategy
+  first since it's the most static/reference-like, then what happened, then what was collected),
+  or the Profile page's Account/Password (short tab labels; the fuller "Account Details"/"Change
+  Password" phrasing lives in each tab's tooltip, not the label itself — keep tab labels
+  one word/short where the tooltip can carry the fuller name). This replaced an earlier pattern of
+  three
+  independently-toggled `showX`/`setShowX` collapsible `Card`s stacked vertically, which became
+  unwieldy once there were enough sections to make the page a long "sheet." **Don't use tabs** for
+  sections that are genuinely independent and might reasonably be compared side by side or aren't
+  about one shared subject (e.g. the Sources page's own list + the separate Strategies comparison
+  panel below it stay as separate `Card`s, not tabs, since strategy comparison spans *multiple*
+  sources at once — the opposite of "one entity, several views").
+  - Active tab: `data-active` (not `data-selected` — a real gotcha, confirmed live against
+    `@base-ui/react/tabs`'s actual DOM output) drives a `border-primary` underline plus
+    `font-semibold` — bold alone or color alone wasn't judged clear enough.
+  - Tab label size is `text-base` (16px), a step up from the `text-sm` default body/label size,
+    since tabs are replacing what used to be a `CardTitle` heading for each section.
+  - A tab with a non-obvious scope gets a `Tooltip` (already established, see the "opaque
+    technical term" pattern in the `data-sources` skill) — wrap each `TabsTab` as a plain child of
+    `TooltipTrigger` (not via the `render` prop), since `TooltipTrigger`'s default `<span>` wrapper
+    keeps `TabsTab`'s own classes/behavior fully intact; composing via `render` risks two
+    className-merge passes fighting each other unpredictably in the compiled Tailwind order.
 - **Active navigation state must be visually distinguishable.** Prefer a border-based active state
   (`border border-border` on the active item, `border-transparent` on inactive ones to reserve the
   same width) unless another pattern is already established for that context.

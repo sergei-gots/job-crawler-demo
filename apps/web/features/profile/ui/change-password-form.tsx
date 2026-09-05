@@ -5,7 +5,6 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { ApiError } from "@/shared/lib/api";
 import { Button } from "@/shared/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Label } from "@/shared/ui/label";
 import { PasswordInput } from "@/shared/ui/password-input";
 import { changePassword } from "../api/change-password";
@@ -39,40 +38,38 @@ export function ChangePasswordForm({ token }: ChangePasswordFormProps) {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Change password</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="currentPassword">Current password</Label>
-            <PasswordInput id="currentPassword" {...register("currentPassword")} />
-            {errors.currentPassword && (
-              <p className="text-sm text-red-500">{errors.currentPassword.message}</p>
-            )}
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="newPassword">New password</Label>
-            <PasswordInput id="newPassword" {...register("newPassword")} />
-            {errors.newPassword && (
-              <p className="text-sm text-red-500">{errors.newPassword.message}</p>
-            )}
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="confirmNewPassword">Confirm new password</Label>
-            <PasswordInput id="confirmNewPassword" {...register("confirmNewPassword")} />
-            {errors.confirmNewPassword && (
-              <p className="text-sm text-red-500">{errors.confirmNewPassword.message}</p>
-            )}
-          </div>
-          {serverError && <p className="text-sm text-red-500">{serverError}</p>}
-          {success && <p className="text-sm text-green-600">Password changed.</p>}
-          <Button type="submit" disabled={isSubmitting} className="w-fit">
-            {isSubmitting ? "Saving..." : "Change password"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="currentPassword">Current password</Label>
+        {/* autoComplete="new-password" - see update-profile-form.tsx's identical field for why. */}
+        <PasswordInput id="currentPassword" autoComplete="new-password" {...register("currentPassword")} />
+        {errors.currentPassword && (
+          <p className="text-sm text-red-500">{errors.currentPassword.message}</p>
+        )}
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="newPassword">New password</Label>
+        <PasswordInput id="newPassword" autoComplete="new-password" {...register("newPassword")} />
+        {errors.newPassword && (
+          <p className="text-sm text-red-500">{errors.newPassword.message}</p>
+        )}
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="confirmNewPassword">Confirm new password</Label>
+        <PasswordInput
+          id="confirmNewPassword"
+          autoComplete="new-password"
+          {...register("confirmNewPassword")}
+        />
+        {errors.confirmNewPassword && (
+          <p className="text-sm text-red-500">{errors.confirmNewPassword.message}</p>
+        )}
+      </div>
+      {serverError && <p className="text-sm text-red-500">{serverError}</p>}
+      {success && <p className="text-sm text-green-600">Password changed.</p>}
+      <Button type="submit" disabled={isSubmitting} className="w-fit">
+        {isSubmitting ? "Saving..." : "Change password"}
+      </Button>
+    </form>
   );
 }

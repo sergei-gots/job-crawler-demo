@@ -36,6 +36,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Checkbox } from "@/shared/ui/checkbox";
 import { Input } from "@/shared/ui/input";
 import { StatusBadge } from "@/shared/ui/status-badge";
+import { Tabs, TabsList, TabsPanel, TabsTab } from "@/shared/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 
 const POLL_INTERVAL_MS = 2000;
 const VACANCIES_PAGE_SIZE = 10;
@@ -50,9 +52,6 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [vacancies, setVacancies] = useState<Vacancy[] | null>(null);
   const [vacanciesPage, setVacanciesPage] = useState(1);
-  const [showLogs, setShowLogs] = useState(false);
-  const [showVacancies, setShowVacancies] = useState(false);
-  const [showStrategy, setShowStrategy] = useState(false);
   const [clearDataPending, setClearDataPending] = useState(false);
   const [expandedRawVacancyIds, setExpandedRawVacancyIds] = useState<Set<string>>(new Set());
   const [maxVacanciesInput, setMaxVacanciesInput] = useState("");
@@ -623,118 +622,109 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
             </Card>
 
             <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Execution logs</CardTitle>
-                  <Button variant="secondary" size="sm" onClick={() => setShowLogs((v) => !v)}>
-                    {showLogs ? "Hide logs" : "Show logs"}
-                  </Button>
-                </div>
-              </CardHeader>
-              {showLogs && (
-                <CardContent>
-                  {!run || run.logs.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No logs yet.</p>
-                  ) : (
-                    <div className="flex flex-col gap-1 font-mono text-xs">
-                      {run.logs.map((log) => (
-                        <p
-                          key={log.id}
-                          className={log.level === "ERROR" ? "text-destructive" : "text-foreground"}
+              <CardContent>
+                <Tabs defaultValue="strategy">
+                  <TabsList>
+                    <Tooltip>
+                      <TooltipTrigger className="cursor-pointer border-none">
+                        <TabsTab value="strategy">Strategy</TabsTab>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        The CrawlStrategy actually used to crawl this source, step by step.
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger className="cursor-pointer border-none">
+                        <TabsTab value="logs">Logs</TabsTab>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Line-by-line execution log of the most recent crawl run (fetch/parse/enrich
+                        steps).
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger className="cursor-pointer border-none">
+                        <TabsTab value="vacancies">Vacancies</TabsTab>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Vacancies upserted into Elasticsearch by this source, deduplicated by source +
+                        external ID.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TabsList>
+
+                  <TabsPanel value="strategy">
+                    <StrategyFlow steps={source.strategySteps} />
+                  </TabsPanel>
+
+                  <TabsPanel value="logs">
+                    {!run || run.logs.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No logs yet.</p>
+                    ) : (
+                      <div className="flex flex-col gap-1 font-mono text-xs">
+                        {run.logs.map((log) => (
+                          <p
+                            key={log.id}
+                            className={log.level === "ERROR" ? "text-destructive" : "text-foreground"}
+                          >
+                            <span className="text-muted-foreground">
+                              {new Date(log.createdAt).toLocaleTimeString()}
+                            </span>{" "}
+                            {log.message}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </TabsPanel>
+
+                  <TabsPanel value="vacancies">
+                    {!vacancies ? (
+                      <p className="text-sm text-muted-foreground">Loading...</p>
+                    ) : vacancies.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No vacancies found yet.</p>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {pagedVacancies.map((vacancy, index) => {
+                          const key = vacancyKey(vacancy);
+                          const ordinal = (vacanciesPage - 1) * VACANCIES_PAGE_SIZE + index + 1;
+                          return (
+                            <VacancyCard
+                              key={key}
+                              vacancy={vacancy}
+                              ordinal={ordinal}
+                              isRawExpanded={expandedRawVacancyIds.has(key)}
+                              onToggleRaw={() => toggleRawVacancy(key)}
+                            />
+                          );
+                        })}
+                      </div>
+                    )}
+                    {vacancies && vacancies.length > VACANCIES_PAGE_SIZE && (
+                      <div className="mt-3 flex items-center justify-between">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={vacanciesPage === 1}
+                          onClick={() => setVacanciesPage((p) => p - 1)}
                         >
-                          <span className="text-muted-foreground">
-                            {new Date(log.createdAt).toLocaleTimeString()}
-                          </span>{" "}
-                          {log.message}
+                          Previous
+                        </Button>
+                        <p className="text-xs text-muted-foreground">
+                          Page {vacanciesPage} of {totalVacancyPages}
                         </p>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              )}
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Vacancies</CardTitle>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setShowVacancies((v) => !v)}
-                  >
-                    {showVacancies ? "Hide vacancies" : "Show vacancies"}
-                  </Button>
-                </div>
-              </CardHeader>
-              {showVacancies && (
-                <CardContent>
-                  {!vacancies ? (
-                    <p className="text-sm text-muted-foreground">Loading...</p>
-                  ) : vacancies.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No vacancies found yet.</p>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      {pagedVacancies.map((vacancy, index) => {
-                        const key = vacancyKey(vacancy);
-                        const ordinal = (vacanciesPage - 1) * VACANCIES_PAGE_SIZE + index + 1;
-                        return (
-                          <VacancyCard
-                            key={key}
-                            vacancy={vacancy}
-                            ordinal={ordinal}
-                            isRawExpanded={expandedRawVacancyIds.has(key)}
-                            onToggleRaw={() => toggleRawVacancy(key)}
-                          />
-                        );
-                      })}
-                    </div>
-                  )}
-                  {vacancies && vacancies.length > VACANCIES_PAGE_SIZE && (
-                    <div className="mt-3 flex items-center justify-between">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={vacanciesPage === 1}
-                        onClick={() => setVacanciesPage((p) => p - 1)}
-                      >
-                        Previous
-                      </Button>
-                      <p className="text-xs text-muted-foreground">
-                        Page {vacanciesPage} of {totalVacancyPages}
-                      </p>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={vacanciesPage >= totalVacancyPages}
-                        onClick={() => setVacanciesPage((p) => p + 1)}
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              )}
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Applied crawling strategy</CardTitle>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setShowStrategy((v) => !v)}
-                  >
-                    {showStrategy ? "Hide strategy" : "Show strategy"}
-                  </Button>
-                </div>
-              </CardHeader>
-              {showStrategy && (
-                <CardContent>
-                  <StrategyFlow steps={source.strategySteps} />
-                </CardContent>
-              )}
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={vacanciesPage >= totalVacancyPages}
+                          onClick={() => setVacanciesPage((p) => p + 1)}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    )}
+                  </TabsPanel>
+                </Tabs>
+              </CardContent>
             </Card>
           </>
         )}

@@ -5,7 +5,10 @@ import { useRequireAuth } from "@/entities/session";
 import { getCurrentUser, setCachedUser, type CurrentUser } from "@/entities/user";
 import { ChangePasswordForm, UpdateProfileForm } from "@/features/profile";
 import { ApiError } from "@/shared/lib/api";
+import { Card, CardContent } from "@/shared/ui/card";
 import { PageTitle } from "@/shared/ui/page-title";
+import { Tabs, TabsList, TabsPanel, TabsTab } from "@/shared/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 
 export function ProfilePage() {
   const { token, handleUnauthorized } = useRequireAuth();
@@ -40,17 +43,41 @@ export function ProfilePage() {
         <PageTitle>Profile</PageTitle>
         {error && <p className="text-sm text-red-500">{error}</p>}
         {user ? (
-          <>
-            <UpdateProfileForm
-              user={user}
-              token={token}
-              onUpdated={(updated) => {
-                setUser(updated);
-                setCachedUser(updated);
-              }}
-            />
-            <ChangePasswordForm token={token} />
-          </>
+          <Card>
+            <CardContent>
+              <Tabs defaultValue="account">
+                <TabsList>
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-pointer border-none">
+                      <TabsTab value="account">Account</TabsTab>
+                    </TooltipTrigger>
+                    <TooltipContent>Account Details - update your name and email.</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-pointer border-none">
+                      <TabsTab value="password">Password</TabsTab>
+                    </TooltipTrigger>
+                    <TooltipContent>Change Password - update your account password.</TooltipContent>
+                  </Tooltip>
+                </TabsList>
+
+                <TabsPanel value="account">
+                  <UpdateProfileForm
+                    user={user}
+                    token={token}
+                    onUpdated={(updated) => {
+                      setUser(updated);
+                      setCachedUser(updated);
+                    }}
+                  />
+                </TabsPanel>
+
+                <TabsPanel value="password">
+                  <ChangePasswordForm token={token} />
+                </TabsPanel>
+              </Tabs>
+            </CardContent>
+          </Card>
         ) : (
           <p className="text-sm text-muted-foreground">Loading...</p>
         )}
