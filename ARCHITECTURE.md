@@ -122,9 +122,10 @@ mechanism which doesn't exist in code.
 | updatedAt | timestamp                  |                                                         |
 
 A named, independently-crawlable sub-target of a source — additive, not a forced 1-per-source
-minimum: most sources (`Habr Career`, `RemoteOK`, `Craigslist`) have none and crawl exactly as
-before. `WeWorkRemotely` requires one (its strategy throws if crawled with `listing: null`) —
-see `.claude/features/09_FEATURE_CRAWL_LISTINGS.md`. `@@unique([sourceId, subPath])`.
+minimum: some sources (`Habr Career`, `RemoteOK`) have none and crawl exactly as before.
+`WeWorkRemotely` and `Craigslist` each require one (their strategies throw if crawled with
+`listing: null`) — see `.claude/features/09_FEATURE_CRAWL_LISTINGS.md` and
+`.claude/features/10_FEATURE_CRAIGSLIST.md`. `@@unique([sourceId, subPath])`.
 
 ### CrawlRun (PostgreSQL)
 | Field          | Type                          | Notes                                        |

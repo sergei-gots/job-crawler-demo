@@ -1,7 +1,7 @@
 # Job-Crawler-Demo
 
-A modular demonstration web application showcasing a modern web crawling and data processing
-stack:
+A modular demonstration web application that crawls and aggregates developer/tech job vacancies,
+showcasing a modern web crawling and data processing stack:
 
 - **Backend**: Node.js, Express, TypeScript
 - **Frontend**: Next.js, React, Tailwind CSS
@@ -224,7 +224,6 @@ See `.claude/features/04_FEATURE_PUPPETEER_REMOTEOK.md`.
 ### Not yet implemented
 
 - AI enrichment
-- Additional source parsers (Craigslist)
 
 Track progress against the MVP plan in `CLAUDE.md` → User Stories.
 
