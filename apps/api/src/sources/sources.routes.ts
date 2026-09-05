@@ -10,6 +10,7 @@ import {
   patchListing,
   patchSource,
   postClearData,
+  postClearListingCache,
   postCrawl,
   postCrawlAll,
   postCrawlStop,
@@ -34,3 +35,4 @@ sourcesRouter.post("/:id/listings/:listingId/crawl/stop", postListingCrawlStop);
 sourcesRouter.get("/:id/listings/:listingId/run", getListingRunHandler);
 sourcesRouter.get("/:id/listings/:listingId/vacancies", getListingVacanciesHandler);
 sourcesRouter.patch("/:id/listings/:listingId", patchListing);
+sourcesRouter.post("/:id/listings/:listingId/clear-cache", postClearListingCache);

@@ -16,6 +16,7 @@ import {
   stopCrawlRun,
   waitUntilNotCrawling,
 } from "../crawler/crawlRunner.js";
+import { deleteCachedPage } from "../crawler/pageCache.js";
 
 // Generic fallback for a source with no implemented CrawlStrategy yet (currently only
 // Craigslist) - deliberately NOT source-specific research content (e.g. Craigslist's actual
@@ -124,6 +125,29 @@ export async function getListingVacancies(
 ): Promise<CrawlerResultDoc[]> {
   await getListingById(sourceId, listingId);
   return queryVacanciesForListing(sourceId, listingId);
+}
+
+/**
+ * Evicts just this listing's page cache entries, not the whole Redis instance (unlike the global
+ * "Clear cache" admin action's `flushdb`) - the cache is keyed by `sourceId` + a hash of the exact
+ * URL fetched (see pageCache.ts), so there's no single "listing" key to delete; instead this
+ * recomputes every URL this listing is known to have caused a fetch for - its own listing page,
+ * plus the detail page of every vacancy currently attributed to it (queryVacanciesForListing) -
+ * and deletes each one's cache entry individually. A vacancy that also appears in another of this
+ * source's listings (see CrawlerResultDoc.listingId's "last touched by" note) has its detail-page
+ * cache cleared too, since evicting a cache entry that a sibling listing also happens to rely on
+ * just means its next crawl re-fetches instead of reusing a cached copy - never incorrect, only a
+ * bit less efficient. Does not touch the shared rate-limiter key (`rate:source:{sourceId}`) - that
+ * isn't a per-listing concept, so clearing it here would silently affect sibling listings too.
+ */
+export async function clearListingCache(sourceId: number, listingId: number): Promise<void> {
+  const source = await getSourceById(sourceId);
+  const listing = await getListingById(sourceId, listingId);
+  const vacancies = await queryVacanciesForListing(sourceId, listingId);
+
+  const listingUrl = new URL(listing.subPath, source.baseUrl).toString();
+  const urls = [listingUrl, ...vacancies.map((vacancy) => vacancy.url)];
+  await Promise.all(urls.map((url) => deleteCachedPage(sourceId, url)));
 }
 
 /**

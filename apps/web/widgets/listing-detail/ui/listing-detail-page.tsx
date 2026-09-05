@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { listingSlot, useCrawlActions } from "@/features/run-crawl";
 import { updateListingActive } from "@/features/edit-source-settings";
+import { clearListingCache } from "@/features/admin-actions";
 import { useRequireAuth } from "@/entities/session";
 import {
   getListingRun,
@@ -35,6 +36,7 @@ export function ListingDetailPage({ sourceId, listingId }: { sourceId: number; l
   const [vacanciesPage, setVacanciesPage] = useState(1);
   const [expandedRawVacancyIds, setExpandedRawVacancyIds] = useState<Set<string>>(new Set());
   const [activePending, setActivePending] = useState(false);
+  const [clearCachePending, setClearCachePending] = useState(false);
 
   const listing = source?.listings.find((l) => l.id === listingId) ?? null;
 
@@ -145,6 +147,29 @@ export function ListingDetailPage({ sourceId, listingId }: { sourceId: number; l
     }
   }
 
+  async function handleClearCache() {
+    if (!token) return;
+    if (
+      !window.confirm(
+        "Clear this listing's page cache (its own listing page plus every one of its vacancies' detail pages)? The next crawl will re-fetch from scratch instead of reusing cached pages.",
+      )
+    ) {
+      return;
+    }
+    setClearCachePending(true);
+    try {
+      await clearListingCache(sourceId, listingId, token);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      setLoadError("Failed to clear cache");
+    } finally {
+      setClearCachePending(false);
+    }
+  }
+
   const actionPending = isPending(listingSlot(sourceId, listingId));
   const error = actionError ?? loadError;
   const pagedVacancies = (vacancies ?? []).slice(
@@ -210,7 +235,17 @@ export function ListingDetailPage({ sourceId, listingId }: { sourceId: number; l
                     Active
                   </Label>
                 </div>
-                <div className="flex items-center justify-end gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="w-fit text-destructive"
+                    title="Clear this listing's page cache"
+                    disabled={clearCachePending}
+                    onClick={handleClearCache}
+                  >
+                    Clear cache
+                  </Button>
                   {run?.status === "RUNNING" ? (
                     <Button
                       variant="secondary"
