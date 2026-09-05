@@ -77,7 +77,16 @@ export function SearchPage() {
           items={suggestions}
           filter={null}
           inputValue={query}
-          onInputValueChange={(value) => setQuery(value)}
+          onInputValueChange={(value, eventDetails) => {
+            // base-ui's Combobox treats the input as reflecting a "selected value," not free
+            // text - pressing Escape (or closing the popup) with nothing explicitly selected
+            // resets the visible input back to that (nonexistent) selection via this same
+            // callback, reason "input-clear", silently wiping out whatever the user typed.
+            // There's no real "selected item" concept here (this is a free-text search box with
+            // suggestion assist, not a picker), so ignore that specific reset and keep the query.
+            if (eventDetails.reason === "input-clear") return;
+            setQuery(value);
+          }}
           onValueChange={(item) => {
             if (item) setQuery(item.value);
           }}
