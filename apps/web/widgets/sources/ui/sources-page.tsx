@@ -577,25 +577,31 @@ export function SourcesPage() {
           {showStrategies && (
             <CardContent className="flex flex-col gap-4">
               <p className="text-sm text-muted-foreground">
-                Crawling strategy for the sources you select below.
+                Crawling strategy for the sources you select below (up to 2 at a time, so both fit
+                side by side).
               </p>
               <div className="flex flex-wrap gap-4">
-                {(sources ?? []).map((source) => (
-                  <Label key={source.id} className="cursor-pointer">
-                    <Checkbox
-                      checked={comparedSourceNames.has(source.name)}
-                      onCheckedChange={(checked) => {
-                        setComparedSourceNames((prev) => {
-                          const next = new Set(prev);
-                          if (checked) next.add(source.name);
-                          else next.delete(source.name);
-                          return next;
-                        });
-                      }}
-                    />
-                    {source.name}
-                  </Label>
-                ))}
+                {(sources ?? []).map((source) => {
+                  const isChecked = comparedSourceNames.has(source.name);
+                  const isDisabled = !isChecked && comparedSourceNames.size >= 2;
+                  return (
+                    <Label key={source.id} className={isDisabled ? undefined : "cursor-pointer"}>
+                      <Checkbox
+                        checked={isChecked}
+                        disabled={isDisabled}
+                        onCheckedChange={(checked) => {
+                          setComparedSourceNames((prev) => {
+                            const next = new Set(prev);
+                            if (checked) next.add(source.name);
+                            else next.delete(source.name);
+                            return next;
+                          });
+                        }}
+                      />
+                      {source.name}
+                    </Label>
+                  );
+                })}
               </div>
               {comparedSourceNames.size > 0 && (
                 <div className="grid gap-4 md:grid-cols-2">
