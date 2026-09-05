@@ -103,6 +103,7 @@ export async function executeCrawlRun(
   }
 
   let vacanciesFound = 0;
+  let failed = false;
   try {
     await logInfo(run.id, `Starting crawl of ${source.name}`);
 
@@ -155,6 +156,7 @@ export async function executeCrawlRun(
       }
     }
   } catch (error) {
+    failed = true;
     logger.error(`Failed to crawl source ${source.name} (run ${run.id}): ${String(error)}`);
     // Best-effort — if the CrawlRun row itself is gone (e.g. deleted by a concurrent
     // clear-data action while this crawl was still in flight), this write fails too; that's
@@ -176,13 +178,18 @@ export async function executeCrawlRun(
 
   try {
     // Status-conditioned update: if the run was already stopped right as the crawl above
-    // finished, this affects 0 rows and we skip appending a "Crawl completed" log that would
-    // contradict the STOPPED status.
+    // finished, this affects 0 rows and we skip appending a "Crawl completed"/"Crawl failed" log
+    // that would contradict the STOPPED status. `failed` (set in the catch block above) decides
+    // FAILED vs COMPLETED - previously this always wrote COMPLETED regardless of whether the try
+    // block threw, silently overwriting a real failure (already logged via logError above) with a
+    // success status one line later.
     const { count } = await prisma.crawlRun.updateMany({
       where: { id: run.id, status: "RUNNING" },
-      data: { status: "COMPLETED", finishedAt: new Date(), vacanciesFound },
+      data: failed
+        ? { status: "FAILED", finishedAt: new Date(), vacanciesFound }
+        : { status: "COMPLETED", finishedAt: new Date(), vacanciesFound },
     });
-    if (count > 0) {
+    if (count > 0 && !failed) {
       await logInfo(run.id, "Crawl completed");
     }
   } catch (error) {

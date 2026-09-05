@@ -521,18 +521,18 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
                           </div>
                           <StatusBadge
                             className="justify-self-end"
-                            status={listing.isActive ? (listingRun?.status ?? "PENDING") : "INACTIVE"}
+                            status={
+                              // A real run status (especially RUNNING) always wins over isActive -
+                              // see the identical comment in sources-page.tsx.
+                              listingRun?.status ?? (listing.isActive ? "PENDING" : "INACTIVE")
+                            }
                           />
                           {listingRun?.status === "RUNNING" ? (
                             <Button
                               variant="secondary"
                               size="sm"
                               className="w-20 justify-self-end"
-                              disabled={
-                                !listing.isActive ||
-                                listingPendingIds.has(listing.id) ||
-                                clearDataPending
-                              }
+                              disabled={listingPendingIds.has(listing.id) || clearDataPending}
                               onClick={() => handleStopListing(listing.id)}
                             >
                               Stop

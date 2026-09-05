@@ -488,7 +488,12 @@ export function SourcesPage() {
                                 <StatusBadge
                                   className="justify-self-end"
                                   status={
-                                    listing.isActive ? (listingRun?.status ?? "PENDING") : "INACTIVE"
+                                    // A real run status (especially RUNNING) always wins over the
+                                    // isActive flag - isActive only controls whether *future*
+                                    // crawl-all requests include this listing, it's not a "hide
+                                    // what's actually happening" switch. Only fall back to
+                                    // PENDING/INACTIVE placeholders when there's no run at all.
+                                    listingRun?.status ?? (listing.isActive ? "PENDING" : "INACTIVE")
                                   }
                                 />
                                 {listingRun?.status === "RUNNING" ? (
@@ -496,11 +501,7 @@ export function SourcesPage() {
                                     variant="secondary"
                                     size="sm"
                                     className="w-20 justify-self-end"
-                                    disabled={
-                                      !listing.isActive ||
-                                      listingPendingIds.has(listing.id) ||
-                                      anyClearPending
-                                    }
+                                    disabled={listingPendingIds.has(listing.id) || anyClearPending}
                                     onClick={() => handleStopListing(source.id, listing.id)}
                                   >
                                     Stop
