@@ -36,10 +36,13 @@ requires them.
   first since it's the most static/reference-like, then what happened, then what was collected),
   or the Profile page's Account/Password (short tab labels; the fuller "Account Details"/"Change
   Password" phrasing lives in each tab's tooltip, not the label itself — keep tab labels
-  one word/short where the tooltip can carry the fuller name). This replaced an earlier pattern of
-  three
-  independently-toggled `showX`/`setShowX` collapsible `Card`s stacked vertically, which became
-  unwieldy once there were enough sections to make the page a long "sheet." **Don't use tabs** for
+  one word/short where the tooltip can carry the fuller name), or the Listing detail page's
+  Logs/Vacancies — **no Strategy tab there**, deliberately: the applied strategy belongs to the
+  *source*, not any one of its listings (every listing under a source shares the exact same
+  strategy), so repeating it per-listing would be redundant rather than a genuine additional view.
+  This replaced an earlier pattern of independently-toggled `showX`/`setShowX` collapsible `Card`s
+  stacked vertically, which became unwieldy once there were enough sections to make the page a
+  long "sheet." **Don't use tabs** for
   sections that are genuinely independent and might reasonably be compared side by side or aren't
   about one shared subject (e.g. the Sources page's own list + the separate Strategies comparison
   panel below it stay as separate `Card`s, not tabs, since strategy comparison spans *multiple*
