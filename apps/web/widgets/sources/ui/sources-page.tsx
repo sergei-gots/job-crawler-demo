@@ -17,6 +17,7 @@ import {
   getListingRun,
   getSourceRun,
   getSources,
+  listingDisplayStatus,
   StrategyFlow,
   type CrawlRun,
   type Listing,
@@ -487,14 +488,7 @@ export function SourcesPage() {
                                 </div>
                                 <StatusBadge
                                   className="justify-self-end"
-                                  status={
-                                    // A real run status (especially RUNNING) always wins over the
-                                    // isActive flag - isActive only controls whether *future*
-                                    // crawl-all requests include this listing, it's not a "hide
-                                    // what's actually happening" switch. Only fall back to
-                                    // PENDING/INACTIVE placeholders when there's no run at all.
-                                    listingRun?.status ?? (listing.isActive ? "PENDING" : "INACTIVE")
-                                  }
+                                  status={listingDisplayStatus(listing, listingRun)}
                                 />
                                 {listingRun?.status === "RUNNING" ? (
                                   <Button

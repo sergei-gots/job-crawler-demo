@@ -23,6 +23,7 @@ import {
   getSource,
   getSourceRun,
   getSourceVacancies,
+  listingDisplayStatus,
   StrategyFlow,
   type CrawlRun,
   type CrawlRunWithLogs,
@@ -521,11 +522,7 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
                           </div>
                           <StatusBadge
                             className="justify-self-end"
-                            status={
-                              // A real run status (especially RUNNING) always wins over isActive -
-                              // see the identical comment in sources-page.tsx.
-                              listingRun?.status ?? (listing.isActive ? "PENDING" : "INACTIVE")
-                            }
+                            status={listingDisplayStatus(listing, listingRun)}
                           />
                           {listingRun?.status === "RUNNING" ? (
                             <Button
