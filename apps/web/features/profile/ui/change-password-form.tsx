@@ -18,12 +18,24 @@ export function ChangePasswordForm({ token }: ChangePasswordFormProps) {
   const [serverError, setServerError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  const MIN_PASSWORD_LENGTH = 8;
+
   const {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<ChangePasswordFormValues>({ resolver: zodResolver(changePasswordSchema) });
+
+  // Enabled purely on length, independent of the full schema (which also requires a non-empty
+  // currentPassword and a newPassword/confirmNewPassword match) - a quick, cheap "there's enough
+  // here to be worth trying" gate rather than a full live-validity check on every keystroke; the
+  // schema's own error messages still catch a missing currentPassword or a mismatch on submit.
+  const [newPassword, confirmNewPassword] = watch(["newPassword", "confirmNewPassword"]);
+  const canSubmit =
+    (newPassword?.length ?? 0) >= MIN_PASSWORD_LENGTH &&
+    (confirmNewPassword?.length ?? 0) >= MIN_PASSWORD_LENGTH;
 
   async function onSubmit(values: ChangePasswordFormValues) {
     setServerError(null);
@@ -39,6 +51,9 @@ export function ChangePasswordForm({ token }: ChangePasswordFormProps) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+      <p className="text-sm text-muted-foreground">
+        New password must be at least {MIN_PASSWORD_LENGTH} characters.
+      </p>
       <div className="flex flex-col gap-2">
         <Label htmlFor="currentPassword">Current password</Label>
         {/* autoComplete="new-password" - see update-profile-form.tsx's identical field for why. */}
@@ -67,7 +82,7 @@ export function ChangePasswordForm({ token }: ChangePasswordFormProps) {
       </div>
       {serverError && <p className="text-sm text-red-500">{serverError}</p>}
       {success && <p className="text-sm text-green-600">Password changed.</p>}
-      <Button type="submit" disabled={isSubmitting} className="w-fit">
+      <Button type="submit" disabled={isSubmitting || !canSubmit} className="w-fit">
         {isSubmitting ? "Saving..." : "Change password"}
       </Button>
     </form>

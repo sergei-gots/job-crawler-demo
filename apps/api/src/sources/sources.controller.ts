@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { handleError } from "../utils/errors.js";
 import { updateListingActiveSchema, updateSourceSettingsSchema } from "./sources.schemas.js";
 import {
+  clearListingCache,
   clearSourceData,
   getListingRun,
   getListingVacancies,
@@ -204,6 +205,18 @@ export async function getListingVacanciesHandler(req: Request, res: Response): P
   try {
     const vacancies = await getListingVacancies(params.sourceId, params.listingId);
     res.status(200).json({ vacancies });
+  } catch (error) {
+    handleError(res, error, "sources");
+  }
+}
+
+export async function postClearListingCache(req: Request, res: Response): Promise<void> {
+  const params = parseListingParams(req, res);
+  if (!params) return;
+
+  try {
+    await clearListingCache(params.sourceId, params.listingId);
+    res.status(204).send();
   } catch (error) {
     handleError(res, error, "sources");
   }

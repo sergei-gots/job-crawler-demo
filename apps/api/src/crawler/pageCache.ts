@@ -12,6 +12,11 @@ export interface CachedPage {
   cacheHit: boolean;
 }
 
+function cacheKeyFor(sourceId: number, pageUrl: string): string {
+  const urlHash = createHash("sha1").update(pageUrl).digest("hex");
+  return `page:raw:${sourceId}:${urlHash}`;
+}
+
 /**
  * Returns the cached HTML for this source/page if present (skipping `fetchFn` and the rate
  * limiter entirely, since no new outbound request happens), otherwise fetches, caches, and
@@ -22,8 +27,7 @@ export async function getOrFetch(
   pageUrl: string,
   fetchFn: () => Promise<string>,
 ): Promise<CachedPage> {
-  const urlHash = createHash("sha1").update(pageUrl).digest("hex");
-  const key = `page:raw:${sourceId}:${urlHash}`;
+  const key = cacheKeyFor(sourceId, pageUrl);
 
   const cached = await redis.get(key);
   if (cached !== null) {
@@ -33,4 +37,14 @@ export async function getOrFetch(
   const html = await fetchFn();
   await redis.set(key, html, "EX", PAGE_CACHE_TTL_SECONDS);
   return { html, cacheHit: false };
+}
+
+/**
+ * Deletes one page's cache entry, keyed exactly the way `getOrFetch` computes it - lets a caller
+ * that already knows a specific set of URLs (e.g. one listing's own page plus its vacancies'
+ * detail pages) evict just those, without the global "Clear cache" admin action's `redis.flushdb`
+ * (which would also drop every other source/listing's cache and the rate limiter's state).
+ */
+export async function deleteCachedPage(sourceId: number, pageUrl: string): Promise<void> {
+  await redis.del(cacheKeyFor(sourceId, pageUrl));
 }
