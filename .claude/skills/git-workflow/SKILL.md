@@ -34,3 +34,8 @@ description: Use when creating commits or preparing/opening a pull request for t
   an explicit "update/rebase"), Claude deletes the now-merged **local** feature branch
   (`git branch -d`) as a normal part of that step. The **remote/GitHub** branch is the user's to
   delete themselves — don't run `git push origin --delete` unless explicitly asked to.
+- **The word "merged" alone (e.g. "merged", "смёрджено") means do the update/rebase step** —
+  `git fetch origin main`, fast-forward local `main` to `origin/main`, delete the now-merged local
+  feature branch — don't wait for the user to separately spell out "update/rebase" too. Confirm the
+  PR is actually merged first (`gh pr view <n> --json state,mergedAt` or `git log origin/main`)
+  rather than assuming, since "merged" could be reported before it's actually landed.
