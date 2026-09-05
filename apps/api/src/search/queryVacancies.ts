@@ -85,8 +85,18 @@ export interface FacetBucket {
   count: number;
 }
 
+/** Matched-term fragments for one hit, only populated for fields that actually matched `filters.q`
+ * - a field the query didn't match (or no `q` at all) is simply absent, not an empty string.
+ * Fragment text uses HIGHLIGHT_PRE_TAG/HIGHLIGHT_POST_TAG (see below) to mark matched substrings;
+ * the frontend splits on these markers to render `<mark>` rather than trusting raw HTML. */
+export interface VacancyHighlight {
+  title?: string;
+  company?: string;
+  description?: string;
+}
+
 export interface VacancySearchResult {
-  hits: CrawlerResultDoc[];
+  hits: (CrawlerResultDoc & { highlight?: VacancyHighlight })[];
   /** Total number of matching vacancies across all pages (not just the returned page). */
   total: number;
   facets: {
@@ -106,7 +116,27 @@ const FACET_FIELDS = {
   company: "company.keyword",
 } as const;
 
-const FACET_AGG_SIZE = 20;
+// specialization/seniority/isRemote are low-cardinality enums - 20 comfortably covers every
+// distinct value seen. company/location are free text sourced from four different crawlers and
+// can have a much longer tail (distinct employer names, city/region strings), so they get a
+// higher cap to keep more of that tail selectable as a facet - still a cap, not "all values", but
+// a reasonable increase over the shared default.
+const DEFAULT_FACET_AGG_SIZE = 20;
+const LONG_TAIL_FACET_AGG_SIZE = 100;
+const FACET_AGG_SIZE: Record<keyof typeof FACET_FIELDS, number> = {
+  specialization: DEFAULT_FACET_AGG_SIZE,
+  seniority: DEFAULT_FACET_AGG_SIZE,
+  isRemote: DEFAULT_FACET_AGG_SIZE,
+  location: LONG_TAIL_FACET_AGG_SIZE,
+  company: LONG_TAIL_FACET_AGG_SIZE,
+};
+
+// Distinctive, unlikely-to-collide markers (not real HTML tags) so the frontend can split matched
+// text out of a highlight fragment and render it as its own React node - avoids ever trusting raw
+// HTML from an ES response via dangerouslySetInnerHTML. Kept in sync manually with the matching
+// constants in apps/web/entities/vacancy/lib/highlight.ts (no shared-types package in this repo).
+export const HIGHLIGHT_PRE_TAG = "@@HL_START@@";
+export const HIGHLIGHT_POST_TAG = "@@HL_END@@";
 
 const DEFAULT_PAGE_SIZE = 10;
 // Caps `from + size` well under Elasticsearch's default `index.max_result_window` (10 000), so
@@ -126,7 +156,12 @@ export async function searchVacancies(filters: VacancySearchFilters): Promise<Va
   const filter: QueryDslQueryContainer[] = [{ range: { lastSeenAt: { gte: staleCutoffIso() } } }];
   if (filters.specialization?.length) filter.push({ terms: { specialization: filters.specialization } });
   if (filters.seniority?.length) filter.push({ terms: { seniority: filters.seniority } });
-  if (filters.isRemote?.length) filter.push({ terms: { isRemote: filters.isRemote } });
+  // A `terms` filter on a boolean field excludes documents missing it entirely (e.g. every
+  // Craigslist vacancy, which never sets isRemote at all - see craigslistStrategy.ts). Selecting
+  // both "Remote" and "On-site" is meant to read as "no filter" per the two-checkbox design
+  // (03_FEATURE_CRAWL_SEARCH_SEPARATION.md), so only apply the filter when exactly one value is
+  // selected - selecting both, or neither, means "everything," including isRemote-unset docs.
+  if (filters.isRemote?.length === 1) filter.push({ terms: { isRemote: filters.isRemote } });
   if (filters.location?.length) filter.push({ terms: { "location.keyword": filters.location } });
   if (filters.company?.length) filter.push({ terms: { "company.keyword": filters.company } });
 
@@ -149,9 +184,27 @@ export async function searchVacancies(filters: VacancySearchFilters): Promise<Va
     aggregations: Object.fromEntries(
       Object.entries(FACET_FIELDS).map(([name, field]) => [
         name,
-        { terms: { field, size: FACET_AGG_SIZE } },
+        { terms: { field, size: FACET_AGG_SIZE[name as keyof typeof FACET_FIELDS] } },
       ]),
     ),
+    // Only meaningful (and only requested) when there's a free-text query to highlight matches
+    // for - the same fields searched by the multi_match above. `number_of_fragments: 0` returns
+    // the whole field with matches marked, rather than an extracted snippet - the frontend already
+    // truncates the description with its own "Show more" toggle, so it needs the complete
+    // marked-up text to truncate/expand correctly, not a fixed-size fragment picked by ES.
+    ...(filters.q
+      ? {
+          highlight: {
+            pre_tags: [HIGHLIGHT_PRE_TAG],
+            post_tags: [HIGHLIGHT_POST_TAG],
+            fields: {
+              title: { number_of_fragments: 0 },
+              company: { number_of_fragments: 0 },
+              description: { number_of_fragments: 0 },
+            },
+          },
+        }
+      : {}),
   });
 
   function bucketsFor(name: keyof typeof FACET_FIELDS): FacetBucket[] {
@@ -169,8 +222,19 @@ export async function searchVacancies(filters: VacancySearchFilters): Promise<Va
   const totalHits = result.hits.total;
   const total = typeof totalHits === "number" ? totalHits : (totalHits?.value ?? 0);
 
+  function highlightFor(hit: { highlight?: Record<string, string[]> }): VacancyHighlight | undefined {
+    const { highlight } = hit;
+    if (!highlight) return undefined;
+    const mapped: VacancyHighlight = {
+      ...(highlight.title?.[0] ? { title: highlight.title[0] } : {}),
+      ...(highlight.company?.[0] ? { company: highlight.company[0] } : {}),
+      ...(highlight.description?.[0] ? { description: highlight.description[0] } : {}),
+    };
+    return Object.keys(mapped).length > 0 ? mapped : undefined;
+  }
+
   return {
-    hits: result.hits.hits.map((hit) => hit._source!),
+    hits: result.hits.hits.map((hit) => ({ ...hit._source!, highlight: highlightFor(hit) })),
     total,
     facets: {
       specialization: bucketsFor("specialization"),
