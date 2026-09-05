@@ -10,6 +10,7 @@ import {
   getListingRun,
   getListingVacancies,
   getSource,
+  listingDisplayStatus,
   type CrawlRun,
   type CrawlRunWithLogs,
   type Source,
@@ -206,7 +207,7 @@ export function ListingDetailPage({ sourceId, listingId }: { sourceId: number; l
                     </Link>
                     <span>&#8627; {listing.label}</span>
                   </CardTitle>
-                  <StatusBadge status={run?.status ?? "PENDING"} />
+                  <StatusBadge status={listingDisplayStatus(listing, run)} />
                 </div>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">

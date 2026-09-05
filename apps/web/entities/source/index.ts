@@ -7,4 +7,4 @@ export { getListingRun } from "./lib/get-listing-run";
 export { getSourceVacancies } from "./lib/get-source-vacancies";
 export { getListingVacancies } from "./lib/get-listing-vacancies";
 export type { CrawlLog, CrawlRun, CrawlRunWithLogs, CrawlStatus, DisplayStatus } from "./lib/crawl-run-types";
-export { aggregateListingStatus } from "./lib/aggregate-listing-status";
+export { aggregateListingStatus, listingDisplayStatus } from "./lib/aggregate-listing-status";
