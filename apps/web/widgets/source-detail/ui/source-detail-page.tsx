@@ -651,7 +651,7 @@ export function SourceDetailPage({ sourceId }: { sourceId: number }) {
                   </TabsList>
 
                   <TabsPanel value="strategy">
-                    <StrategyFlow steps={source.strategySteps} />
+                    <StrategyFlow steps={source.strategySteps} defaultExpanded />
                   </TabsPanel>
 
                   <TabsPanel value="logs">

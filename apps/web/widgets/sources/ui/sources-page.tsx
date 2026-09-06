@@ -615,7 +615,7 @@ export function SourcesPage() {
                             ({source.baseUrl})
                           </a>
                         </p>
-                        <StrategyFlow steps={source.strategySteps} />
+                        <StrategyFlow steps={source.strategySteps} defaultExpanded />
                       </div>
                     ))}
                 </div>
