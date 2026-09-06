@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Job-Crawler-Demo — разбор вопросов к презентации</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #1a1a1a;
+    --fg: #e8e8e8;
+    --muted: #a0a0a0;
+    --code-bg: #262626;
+    --border: #3a3a3a;
+    --accent: #60a5fa;
+    --code-fg: #e8a55c;
+  }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+    line-height: 1.55;
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+  }
+  h1 { font-size: 1.6rem; border-bottom: 2px solid var(--border); padding-bottom: .5rem; }
+  h2.question {
+    margin-top: 3rem;
+    font-size: 1.25rem;
+    color: var(--accent);
+    border-left: 4px solid var(--accent);
+    padding-left: .75rem;
+  }
+  h3 { font-size: 1.05rem; margin-top: 1.5rem; }
+  p { margin: .8rem 0; }
+  code {
+    background: var(--code-bg);
+    color: var(--code-fg);
+    padding: .1rem .35rem;
+    border-radius: 4px;
+    font-size: .9em;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+  }
+  pre code { background: none; padding: 0; color: var(--code-fg); }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid var(--border); padding: .5rem .7rem; text-align: left; font-size: .92rem; }
+  th { background: var(--code-bg); }
+  a { color: var(--accent); }
+  .meta { color: var(--muted); font-size: .9rem; }
+  .warn { color: #f0a868; }
+  .src-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin: 1.2rem 0;
+  }
+  .src-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.1rem;
+    background: #212121;
+  }
+  .src-card .head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .5rem;
+    margin-bottom: .3rem;
+  }
+  .src-card .head .name { font-weight: 700; font-size: 1.02rem; }
+  .src-card .head .url { color: var(--muted); font-size: .82rem; }
+  .src-card .tag {
+    display: inline-block;
+    font-size: .78rem;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    padding: .05rem .55rem;
+    margin-bottom: .6rem;
+  }
+  .flow { display: flex; flex-direction: column; gap: .4rem; margin: .6rem 0; }
+  .flow .box {
+    border-radius: 6px;
+    padding: .5rem .65rem;
+    font-size: .87rem;
+  }
+  .flow .box.problem { background: #3a2a1a; border: 1px solid #6b4a1f; }
+  .flow .box.fix { background: #16303a; border: 1px solid #2a5a6e; }
+  .flow .box .label {
+    display: block;
+    font-size: .7rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin-bottom: .2rem;
+  }
+  .flow .box.problem .label { color: #f0a868; }
+  .flow .box.fix .label { color: #60c5e8; }
+  .flow .arrow { color: var(--muted); font-size: 1.1rem; text-align: center; }
+  .file-ref { font-size: .85rem; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<h1>Job-Crawler-Demo — разбор вопросов к презентации</h1>
+<p class="meta">
+  Личные обучающие заметки Сергея (см. <a href="CLAUDE.md">.claude/doc/CLAUDE.md</a> — эта
+  директория намеренно на русском, git-отслеживаемое исключение из общего правила проекта).
+  Собрано во время подготовки к докладу по <a href="slides/PRESENTATION_SCRIPT.md">сценарию презентации</a>.
+</p>
+<p class="meta">
+  Ссылки на исходники ведут на GitHub (<code>main</code>) — открытие <code>.ts</code>-файла прямо
+  в браузере с локального диска не поддерживает переход к строке (<code>#Lxx</code>) и часто
+  вообще уходит на скачивание файла вместо просмотра.
+</p>
+
+<h2 class="question">Что такое ETL-mapping и как он работает в приложении?</h2>
+
+<p>
+  В сценарии презентации это называется "mapping в ETL-смысле" — отдельный термин ELT в проекте
+  не используется, речь про обычный ETL: <b>Extract</b> (стратегия скачивает/парсит страницу) →
+  <b>Transform</b> (маппинг полей источника в общую модель) → <b>Load</b> (upsert в Elasticsearch).
+</p>
+
+<h3>Целевая модель</h3>
+<p>
+  Каждый сайт-источник отдаёт вакансию в своей структуре (HTML-класс, JSON-LD, RSS...). Прежде чем
+  что-то попадёт в базу, каждая
+  <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/types.ts#L51"><code>CrawlStrategy</code></a> приводит сырые
+  данные к единой целевой модели —
+  <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/types.ts#L3"><code>RawVacancy</code></a>.
+</p>
+<p class="file-ref">Файл: <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/types.ts#L3">apps/api/src/crawler/types.ts</a>, строка 3</p>
+<pre><code>export interface RawVacancy {
+  externalId: string;
+  title: string;
+  company: string | null;
+  url: string;
+  postedAt: string | null;
+  sourceId: number;
+  description?: string | null;
+  location?: string | null;
+  isRemote?: boolean | null;
+  skillsSummary?: string | null;
+  specialization?: string | null;
+  seniority?: string | null;
+}</code></pre>
+
+<h3>Пример трансформации (Habr)</h3>
+<p class="file-ref">Файл: <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/habrCareerStrategy.ts#L102-L131">apps/api/src/crawler/strategies/habrCareerStrategy.ts</a>, строки 102–131 (<a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/habrCareerStrategy.ts#L102"><code>parseHabrVacancyDetail</code></a>)</p>
+<pre><code>return {
+  description,
+  location: jobPosting.jobLocation?.[0]?.address ?? null,
+  isRemote: jobPosting.jobLocationType === "TELECOMMUTE",   // маппинг значения, не просто переименование поля
+  skillsSummary,
+  seniority,
+  specialization,
+};</code></pre>
+<p>
+  Здесь <code>jobLocationType === "TELECOMMUTE"</code> (строковый enum сайта) превращается в
+  булево <code>isRemote</code> — то есть маппинг не только переименовывает поля, но и трансформирует
+  их значения/типы под внутреннюю модель. Похожая логика есть в каждой стратегии
+  (<a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/remoteOkStrategy.ts"><code>remoteOkStrategy.ts</code></a>,
+  <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/weWorkRemotelyStrategy.ts"><code>weWorkRemotelyStrategy.ts</code></a>,
+  <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/craigslistStrategy.ts"><code>craigslistStrategy.ts</code></a>) — свой источник, но одна и та же целевая форма
+  <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/types.ts#L3"><code>RawVacancy</code></a> на выходе.
+</p>
+
+<h3>Два разных значения слова "mapping"</h3>
+<p>В докладе специально разводятся два разных смысла:</p>
+<ol>
+  <li><b>ETL-mapping</b> (описано выше) — превращение сырых полей сайта в
+    <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/types.ts#L3"><code>RawVacancy</code></a>,
+    происходит внутри стратегии, до записи в БД.</li>
+  <li><b>Elasticsearch mapping</b> — это уже схема индекса (типы полей: <code>keyword</code> для
+    фасетов, <code>text</code> для полнотекстового поиска), см.
+    <a href="https://github.com/sergei-gots/job-crawler-demo/tree/main/apps/api/src/search"><code>apps/api/src/search</code></a>
+    и skill <a href="../skills/elasticsearch-conventions/SKILL.md"><code>elasticsearch-conventions</code></a>. Это про то,
+    <i>как</i> Elasticsearch хранит и индексирует уже смапленные данные, а не про трансформацию
+    значений.</li>
+</ol>
+
+<h2 class="question">Что такое JSON-LD и RSS — и как устроен crawling через RSS? Чем это отличается от HTML/JS-краулинга?</h2>
+
+<h3>JSON-LD</h3>
+<p>
+  <b>JSON-LD</b> (JSON for Linking Data) — формат структурированных данных, который сайты
+  встраивают прямо в HTML-страницу для поисковиков (Google и др.), обычно по стандарту schema.org:
+</p>
+<pre><code>&lt;script type="application/ld+json"&gt;
+  { "@type": "JobPosting", "title": "...", "jobLocationType": "TELECOMMUTE", ... }
+&lt;/script&gt;</code></pre>
+<p>
+  Никакого отдельного запроса не нужно: страница пришла обычным HTML-ответом, вы просто вытаскиваете
+  этот <code>&lt;script&gt;</code> через cheerio-селектор и парсите его как JSON, а не через
+  CSS-классы разметки.
+</p>
+<p class="file-ref">Файл: <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/habrCareerStrategy.ts#L63-L69">apps/api/src/crawler/strategies/habrCareerStrategy.ts</a>, строки 63–69 (<a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/habrCareerStrategy.ts#L63"><code>findJobPosting</code></a>)</p>
+<pre><code>function findJobPosting($: ReturnType&lt;typeof cheerio.load&gt;): HabrJobPosting | null {
+  for (const el of $('script[type="application/ld+json"]').toArray()) {
+    const raw = $(el).text();
+    const parsed = JSON.parse(raw) as HabrJobPosting;
+    if (parsed["@type"] === "JobPosting") return parsed;
+  }
+  return null;
+}</code></pre>
+<p>
+  Почему это ценно для краулинга: структурированный JSON стабильнее, чем парсинг CSS-классов —
+  вёрстка сайта может поменяться (редизайн), а <code>schema.org/JobPosting</code>-разметка обычно
+  нет, потому что от неё зависит SEO (Search Engine Optimization — оптимизация под поисковые
+  системы)/индексация в Google Jobs.
+</p>
+
+<h3>RSS</h3>
+<p>
+  <b>RSS</b> — XML-формат ленты обновлений (<code>&lt;item&gt;</code> с <code>&lt;title&gt;</code>,
+  <code>&lt;link&gt;</code>, <code>&lt;description&gt;</code>, <code>&lt;pubDate&gt;</code> и т.п.),
+  исторически придуман для читалок новостей/блогов. У WeWorkRemotely для каждой категории есть
+  RSS-фид по тому же URL, что и HTML-листинг, только с <code>.rss</code> на конце.
+</p>
+<p class="file-ref">Файл: <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/weWorkRemotelyStrategy.ts#L273-L289">apps/api/src/crawler/strategies/weWorkRemotelyStrategy.ts</a>, строки 280–289 (<a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/weWorkRemotelyStrategy.ts#L273"><code>enrichDetails</code></a>)</p>
+<pre><code>const rssUrl = `${listingUrl(source, listing)}.rss`;
+const response = await axios.get&lt;string&gt;(rssUrl, {
+  headers: { "User-Agent": USER_AGENT },
+  timeout: REQUEST_TIMEOUT_MS,
+});</code></pre>
+<p>Парсинг — cheerio в XML-режиме:</p>
+<p class="file-ref">Файл: <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/weWorkRemotelyStrategy.ts#L110">apps/api/src/crawler/strategies/weWorkRemotelyStrategy.ts</a>, строка 110 (<a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/weWorkRemotelyStrategy.ts#L110"><code>parseWeWorkRemotelyRssFeed</code></a>)</p>
+<pre><code>const $ = cheerio.load(xml, { xmlMode: true });
+$("item").each((_, el) => {
+  const item = $(el);
+  const link = item.find("link").first().text().trim();
+  const slug = link.match(/\/remote-jobs\/([^/?#]+)/)?.[1];
+  // ...
+});</code></pre>
+<p>
+  Результат — <code>Map&lt;slug, Partial&lt;RawVacancy&gt;&gt;</code>, который джойнится с уже
+  собранными из HTML-листинга вакансиями по slug
+  (<a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/weWorkRemotelyStrategy.ts#L300"><code>bySlug.get(vacancy.externalId)</code></a>).
+</p>
+
+<h3>Сравнение подходов к краулингу</h3>
+<table>
+  <tr><th></th><th>Обычный HTML (Habr)</th><th>JS-рендеринг / Cloudflare (RemoteOK, WWR listing)</th><th>RSS (WWR detail)</th></tr>
+  <tr><td>Инструмент</td><td>Axios + Cheerio</td><td>Puppeteer (реальный браузер)</td><td>Axios + Cheerio (xmlMode)</td></tr>
+  <tr><td>Почему</td><td>Сервер уже отдаёт готовый HTML</td><td>Контент рендерится JS в браузере, и/или Cloudflare блокирует не-браузерные запросы по fingerprint</td><td>Отдельный ресурс, специально предназначенный для машинного чтения</td></tr>
+  <tr><td>Стоимость запроса</td><td>Дёшево, быстро</td><td>Дорого: нужен headless Chrome, <code>page.goto</code>, ожидание <code>networkidle2</code></td><td>Дёшево — обычный HTTP GET, как HTML</td></tr>
+  <tr><td>Устойчивость</td><td>Ломается при смене вёрстки</td><td>Ломается при смене anti-bot защиты</td><td>Очень устойчив — формат специально для этого и существует</td></tr>
+</table>
+
+<p>
+  Ключевой момент именно для WWR (WWR — сокращение WeWorkRemotely, как оно фигурирует в
+  комментариях кода) (см.
+  <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/weWorkRemotelyStrategy.ts#L107-L118">комментарий в коде, weWorkRemotelyStrategy.ts:107-118</a>): изначально detail-страницы тоже пытались брать
+  через Puppeteer, но при повторных навигациях в одной сессии Cloudflare <b>фингерпринтил браузер и
+  глушил JSON-LD</b> (4 из 5 попыток возвращали страницу без блока, хотя тот же URL руками в
+  браузере открывался нормально). Переход на RSS решил это полностью — фид отдаётся обычным axios
+  без каких-либо челленджей, и одним запросом покрывает сразу все вакансии категории, а не по
+  одному Puppeteer-заходу на вакансию.
+</p>
+<p>
+  То есть: HTML/JSON-LD/RSS — это не про "разные технологии парсинга", а про то, <b>в каком виде и
+  с каким уровнем защиты сайт готов отдавать вам одни и те же данные</b> — и
+  <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/types.ts#L51"><code>CrawlStrategy</code></a> просто выбирает самый дешёвый и надёжный канал из доступных для
+  конкретного сайта.
+</p>
+
+<h2 class="question">Что такое <code>networkidle2</code>? Что такое fingerprint в смысле блокировки Cloudflare, как его можно "размыть" и какие приёмы применяются в проекте?</h2>
+
+<h3><code>networkidle2</code> — что это и зачем</h3>
+<p>
+  Это значение опции <code>waitUntil</code> у <code>page.goto()</code> в Puppeteer — критерий, по
+  которому Puppeteer решает, что страница "загрузилась", прежде чем отдать управление обратно
+  коду. Варианты:
+</p>
+<table>
+  <tr><th>Значение</th><th>Когда считается "готово"</th></tr>
+  <tr><td><code>load</code></td><td>Сработало событие <code>window.onload</code> (все статические ресурсы получены)</td></tr>
+  <tr><td><code>domcontentloaded</code></td><td>DOM (Document Object Model — дерево элементов страницы) построен, но картинки/XHR (XMLHttpRequest — фоновый запрос браузера без перезагрузки страницы)/фетчи могут ещё идти</td></tr>
+  <tr><td><code>networkidle0</code></td><td>Не было ни одного сетевого запроса ≥ 500 мс подряд</td></tr>
+  <tr><td><code>networkidle2</code></td><td>Не более 2 одновременных запросов в течение ≥ 500 мс подряд</td></tr>
+</table>
+<p>
+  Оба сайта, где применяется Puppeteer, рендерят контент через JS уже после начальной загрузки
+  (SPA-подобное поведение (SPA — Single Page Application, приложение, где контент дорисовывается JS уже после начальной загрузки страницы)) — простого <code>load</code> недостаточно, потому что вакансии могут
+  дорисовываться уже после него отдельными XHR/фетч-запросами. <code>networkidle2</code> выбран
+  вместо более строгого <code>networkidle0</code> как компромисс: аналитика/трекеры/long-polling
+  запросы часто никогда полностью не "затихают" (0 активных соединений), так что
+  <code>networkidle0</code> рискует зависать/таймаутить там, где контент уже фактически готов —
+  вспомогательные фоновые запросы игнорируются, пока их не больше 2 одновременно.
+</p>
+<p class="file-ref">Файл: <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/remoteOkStrategy.ts#L172-L175">apps/api/src/crawler/strategies/remoteOkStrategy.ts</a>, строки 172–175</p>
+<pre><code>await page.goto(pageUrl, {
+  waitUntil: "networkidle2",
+  timeout: NAVIGATION_TIMEOUT_MS,
+});</code></pre>
+
+<h3>Что такое "fingerprint" в контексте блокировки Cloudflare</h3>
+<p>
+  Fingerprint — это не один конкретный заголовок, а совокупность сигналов, по которым Cloudflare
+  (или другой anti-bot слой) отличает настоящий браузер реального человека от автоматизированного
+  клиента. Условно несколько уровней:
+</p>
+<ul>
+  <li><b>Сетевой уровень</b> — TLS (Transport Layer Security — протокол шифрования соединения,
+    тот самый "замочек" в адресной строке)/JA3-отпечаток (JA3 — метод отпечатка клиента по
+    порядку и набору cipher suites при TLS-хендшейке — начальном обмене параметрами шифрования),
+    порядок и состав HTTP-заголовков. У <code>axios</code>/Node.js это совершенно не похоже на
+    отпечаток настоящего Chrome, даже если вручную выставить заголовок <code>User-Agent</code>
+    (UA — строка в заголовке запроса, которой клиент называет себя серверу) равным Chrome —
+    остальной "почерк" запроса всё равно выдаёт не-браузер.</li>
+  <li><b>JS-окружение</b> — Cloudflare отдаёт JS-челлендж и проверяет, что его исполняет настоящий
+    браузерный движок: наличие <code>navigator.webdriver</code> (по умолчанию <code>true</code> в
+    headless-режимах, если явно не пропатчено), список плагинов, поведение Canvas/WebGL-рендеринга,
+    таймингов выполнения — всё это не подделать одним заголовком, нужен реальный движок рендеринга.</li>
+  <li><b>Поведенческий/сессионный уровень</b> — даже пройдя первичный челлендж (то есть будучи
+    настоящим headless Chromium с корректным TLS/JS), сессия может быть помечена как
+    автоматизированная по паттерну использования: слишком регулярные интервалы между запросами,
+    последовательные "машинные" переходы без пауз/скролла/мыши, повторные однотипные навигации в
+    одной и той же сессии.</li>
+</ul>
+<p>
+  Именно третий уровень — то, что реально произошло на WeWorkRemotely: обычный HTTP-запрос
+  (<code>axios</code>) получает 403 из-за первого, браузерного уровня — это решается Puppeteer'ом.
+  Но при повторных detail-page навигациях <b>в рамках одной и той же</b> Puppeteer-сессии
+  Cloudflare начинал глушить JSON-LD блок уже после первого успешного захода — это как раз
+  поведенческий фингерпринт сессии, а не разовая проверка заголовков.
+</p>
+<p class="file-ref">Файл: <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/weWorkRemotelyStrategy.ts#L228-L231">apps/api/src/crawler/strategies/weWorkRemotelyStrategy.ts</a>, строки 228–231</p>
+<pre><code>title: "PROBLEM - headless session fingerprinted",
+explanation: "Only 1/5 detail fetches found a JobPosting block - the other 4 came back with it
+silently missing, even though re-opening the same URLs in a real (non-headless) browser
+immediately after showed the block WAS genuinely present. Cloudflare fingerprinted the headless
+Puppeteer session as automated after its first successful navigation, not a per-vacancy data gap."</code></pre>
+
+<h3>Как вообще можно "размыть" fingerprint (общие приёмы, не всё используется в проекте)</h3>
+<ul>
+  <li>Реалистичный <code>User-Agent</code> реального десктопного браузера вместо стандартного
+    UA библиотеки/автоматизации.</li>
+  <li>Puppeteer-стелс-плагины (например <code>puppeteer-extra-plugin-stealth</code>) — патчат
+    <code>navigator.webdriver</code>, подделывают список плагинов, WebGL-vendor и другие
+    JS-детекторы headless-режима.</li>
+  <li>Ротация IP/резидентных прокси — чтобы разные запросы не выглядели одной и той же машиной.</li>
+  <li>Рандомизация viewport, таймзоны, языка браузера.</li>
+  <li>Джиттер (случайный разброс) между запросами вместо идеально регулярных интервалов —
+    регулярность сама по себе бот-сигнал.</li>
+  <li>Ограничение переиспользования одной browser-сессии на много навигаций подряд — свежая сессия
+    на каждый заход снижает шанс поведенческой пометки.</li>
+</ul>
+
+<h3>Что реально применяется в этом проекте</h3>
+<p>
+  Проект осознанно не идёт по пути "гонки вооружений" со стелс-плагинами, а там, где это возможно,
+  ищет незащищённый канал вместо того, чтобы взламывать защищённый — тот самый переход на RSS для
+  WWR вместо усиления Puppeteer-обхода. Из реально применённого:
+</p>
+<ol>
+  <li><b>Реалистичный десктопный UA</b> — не дефолтный Puppeteer UA (сам по себе detectable) и не
+    честный "бот"-UA (свёл бы на нет смысл использования настоящего браузера).</li>
+</ol>
+<p class="file-ref">Файл: <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/remoteOkStrategy.ts#L10-L17">apps/api/src/crawler/strategies/remoteOkStrategy.ts</a>, строки 10–17</p>
+<pre><code>// A real desktop Chrome UA, not Puppeteer's default and not any bot-identifying string. RemoteOK
+// 403s plain (non-browser) requests via a Cloudflare bot check — Puppeteer exists here to pass as
+// a real browser, so presenting a truthful non-browser UA would defeat the point.
+const USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0 Safari/537.36";</code></pre>
+
+<ol start="2">
+  <li><b>Джиттер поверх настраиваемой задержки</b> — каждая пауза между запросами к одному
+    источнику получает случайную добавку 0–7с, специально чтобы избежать "миллиметрово-точного"
+    интервала, который сам по себе бот-сигнал.</li>
+</ol>
+<p class="file-ref">Файл: <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/rateLimiter.ts#L7-L15">apps/api/src/crawler/rateLimiter.ts</a>, строки 7–15</p>
+<pre><code>// Added on top of every wait, never subtracted - a perfectly regular request interval is itself
+// a bot signal (no real client, automated or human, hits an endpoint at millisecond-perfect
+// intervals).
+const MAX_JITTER_MS = 7000;
+
+function withJitter(delayMs: number): number {
+  return delayMs + Math.floor(Math.random() * (MAX_JITTER_MS + 1));
+}</code></pre>
+
+<ol start="3">
+  <li><b>Один запуск браузера на один прогон</b>, а не переиспользование одного и того же
+    browser/page на множество навигаций подряд — снижает поведенческую "плотность" одной сессии
+    (хотя, как показал случай WWR, этого недостаточно против сессионного фингерпринтинга при
+    множественных detail-переходах).</li>
+</ol>
+
+<ol start="4">
+  <li><b>Сознательно НЕ применены</b> стелс-плагины/подмена <code>navigator.webdriver</code> и
+    прочие JS-патчи — задокументировано как рассмотренная, но отклонённая альтернатива: вместо
+    того чтобы глубже прятать автоматизацию, для WWR был найден легитимный канал (RSS), не
+    защищённый Cloudflare вообще.</li>
+</ol>
+<p class="file-ref">Файл: <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/weWorkRemotelyStrategy.ts#L108">apps/api/src/crawler/strategies/weWorkRemotelyStrategy.ts</a>, строка 108</p>
+<pre><code>// resilient (stealth plugins, longer delays, etc. - left as documented alternatives, not applied).</code></pre>
+
+<p>
+  Итог: вместо эскалации в сторону всё более изощрённого сокрытия автоматизации, проект следует
+  принципу "вежливости by design" — реалистичный UA и джиттер снимают базовую детекцию там, где
+  Puppeteer необходим, а там, где протокол сайта сам предлагает менее защищённый машиночитаемый
+  канал (JSON-LD в листинге RemoteOK, RSS-фид WWR), используется он вместо более агрессивного
+  обхода защиты.
+</p>
+
+<h2 class="question">03 · Four Sources, Four Problems (слайд 3 презентации — детальный разбор)</h2>
+<p>
+  На слайде 3 презентации (кикер "03 · Four sources, four problems") — четыре карточки, по одной на
+  источник, каждая в формате "проблема → решение". Ниже — то же самое подробнее, с реальным кодом и
+  ссылками на строки.
+</p>
+<p>
+  Все четыре реализуют один и тот же интерфейс
+  <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/types.ts#L51"><code>CrawlStrategy</code></a>
+  — слайд 2 из презентации показывает этот пайплайн целиком: <code>Site → CrawlStrategy →
+  RawVacancy → Upsert → Search UI</code>. Разница между источниками — только в том, что происходит
+  внутри стадии <code>CrawlStrategy</code>.
+</p>
+
+<div class="src-grid">
+
+  <div class="src-card">
+    <div class="head"><span class="name">Habr Career</span><span class="url">career.habr.com</span></div>
+    <span class="tag">Axios + Cheerio</span>
+    <div class="flow">
+      <div class="box problem"><span class="label">Проблема</span>Листинг server-rendered, но карточки не содержат всех нужных полей (seniority, specialization) — их нет в HTML листинга вообще.</div>
+      <div class="arrow">&darr;</div>
+      <div class="box fix"><span class="label">Решение</span>Отдельный HTTP-запрос на detail-страницу каждой вакансии, парсинг <code>schema.org/JobPosting</code> JSON-LD-блока вместо CSS-классов верстки.</div>
+    </div>
+    <p class="file-ref">Файл: <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/habrCareerStrategy.ts#L123-L130">apps/api/src/crawler/strategies/habrCareerStrategy.ts</a>, строки 123–130</p>
+    <pre><code>return {
+  description,
+  location: jobPosting.jobLocation?.[0]?.address ?? null,
+  isRemote: jobPosting.jobLocationType === "TELECOMMUTE",
+  skillsSummary,
+  seniority,
+  specialization,
+};</code></pre>
+    <p>Разбор JSON-LD-парсинга целиком — см. раздел выше, <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/habrCareerStrategy.ts#L102-L131"><code>habrCareerStrategy.ts:102-131</code></a>.</p>
+  </div>
+
+  <div class="src-card">
+    <div class="head"><span class="name">RemoteOK</span><span class="url">remoteok.com</span></div>
+    <span class="tag">Puppeteer</span>
+    <div class="flow">
+      <div class="box problem"><span class="label">Проблема</span>Cloudflare отдаёт 403 на любой не-браузерный запрос — обычный <code>axios.get()</code> листинга не проходит вообще.</div>
+      <div class="arrow">&darr;</div>
+      <div class="box fix"><span class="label">Решение</span>Puppeteer с реалистичным desktop User-Agent проходит браузерную проверку; листинг уже содержит полный JSON-LD на каждую вакансию — отдельный detail-запрос вообще не нужен.</div>
+    </div>
+    <p class="file-ref">UA и <code>networkidle2</code> — см. разделы выше, <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/remoteOkStrategy.ts#L163-L184"><code>remoteOkStrategy.ts:163-184</code></a>.</p>
+  </div>
+
+  <div class="src-card">
+    <div class="head"><span class="name">WeWorkRemotely</span><span class="url">weworkremotely.com</span></div>
+    <span class="tag">Puppeteer + RSS</span>
+    <div class="flow">
+      <div class="box problem"><span class="label">Проблема</span>Cloudflare-gated листинг (как RemoteOK), и вдобавок headless-сессия фингерпринтится и глушит данные уже после первого detail-перехода.</div>
+      <div class="arrow">&darr;</div>
+      <div class="box fix"><span class="label">Решение</span>Puppeteer только для листинга; для деталей — RSS-фид категории (не защищён вообще), один запрос на всю категорию сразу, без цикла Puppeteer-заходов.</div>
+    </div>
+    <p class="file-ref">Полный разбор — см. раздел про RSS выше, <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/weWorkRemotelyStrategy.ts#L228-L289"><code>weWorkRemotelyStrategy.ts:228-289</code></a>.</p>
+  </div>
+
+  <div class="src-card">
+    <div class="head"><span class="name">Craigslist</span><span class="url">craigslist.org</span></div>
+    <span class="tag">Axios + Cheerio</span>
+    <div class="flow">
+      <div class="box problem"><span class="label">Проблема</span>Никакой защиты от ботов нет — но это generic classifieds (доски объявлений вообще), подавляющее большинство объявлений не про tech.</div>
+      <div class="arrow">&darr;</div>
+      <div class="box fix"><span class="label">Решение</span>Категория <code>cat=sof</code> (software/QA/DBA — тех-специфичный срез сайта) + fan-out по 5 городам, каждый — отдельная <code>CrawlListing</code> запись.</div>
+    </div>
+    <p class="file-ref">Файл: <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/craigslistStrategy.ts#L16-L28">apps/api/src/crawler/strategies/craigslistStrategy.ts</a>, строки 16–28</p>
+    <pre><code>/**
+ * subPath carries the full path+query (`/search/area/&lt;city&gt;?cat=sof`), not just a path segment.
+ */
+function listingUrl(source: CrawlSource, listing: CrawlListing | null): string {
+  if (!listing) {
+    throw new Error("craigslistStrategy requires a CrawlListing - none was provided");
+  }
+  return new URL(listing.subPath, source.baseUrl).toString();
+}</code></pre>
+    <p>Пять городов заданы прямо seed-данными — один <code>CrawlListing</code> на город:</p>
+    <p class="file-ref">Файл: <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/prisma/seed.ts#L64-L83">apps/api/prisma/seed.ts</a>, строки 64–83</p>
+    <pre><code>{ sourceName: "Craigslist", label: "SF Bay Area",  subPath: "/search/area/sfbay?cat=sof" },
+{ sourceName: "Craigslist", label: "New York",     subPath: "/search/area/newyork?cat=sof" },
+{ sourceName: "Craigslist", label: "Seattle",      subPath: "/search/area/seattle?cat=sof" },
+{ sourceName: "Craigslist", label: "Los Angeles",  subPath: "/search/area/losangeles?cat=sof" },</code></pre>
+  </div>
+
+</div>
+
+<p>
+  Общий вывод слайда: один и тот же абстрактный интерфейс
+  <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/types.ts#L51"><code>CrawlStrategy</code></a>
+  закрывает четыре структурно разных случая — обычный server-rendered HTML, Cloudflare-gated JS,
+  RSS-фид и multi-city fan-out по категории — без единого изменения самого интерфейса. Это и есть
+  гипотеза доклада: ограниченный набор приёмов (server HTML + JSON-LD, headless-браузер с
+  реалистичным UA, RSS как обходной канал, категория+fan-out) закрывает практически произвольный
+  сайт.
+</p>
+
+<h2 class="question">Что такое поле <code>steps</code> у <code>CrawlStrategy</code> и как работает <code>StrategyFlow</code>?</h2>
+
+<p>
+  Это не какой-то библиотечный паттерн — это собственная (bespoke) конвенция проекта: обычный
+  TypeScript-объект, реализующий интерфейс
+  <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/types.ts#L51"><code>CrawlStrategy</code></a>,
+  где поле <code>steps</code> описывает "историю" функции <code>crawl()</code>/<code>enrichDetails()</code>
+  как данные, а не как прозу в комментарии.
+</p>
+
+<h3>Это существует только ради UI-диаграммы</h3>
+<p>
+  Массив <code>steps</code> не влияет на реальное исполнение краулинга — движок не читает его и не
+  выполняет по нему шаги. Это чисто описательные данные "для человека": автор стратегии пишет их
+  вручную рядом с реальным кодом (в том же файле, часто в том же коммите), они отдаются через API на
+  фронтенд и рендерятся компонентом <code>StrategyFlow</code> как визуальная блок-схема на странице
+  источника — кликабельная, с раскрывающимися деталями по шагам.
+</p>
+<p>
+  Смысл решения (см. комментарий у самого поля,
+  <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/types.ts#L62-L68">types.ts:62-68</a>):
+  раз диаграмма — это просто ещё одно поле в том же объекте, что и сам код, менять код без
+  обновления диаграммы неудобно ровно настолько, насколько неудобно забыть обновить соседнее поле в
+  одном и том же объекте. Классическая проблема "документация/диаграмма устарела, а код уже другой"
+  таким образом устраняется структурно, а не дисциплиной автора.
+</p>
+
+<h3>Формат одного шага</h3>
+<p class="file-ref">Файл: <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/types.ts#L31-L49">apps/api/src/crawler/types.ts</a>, строки 31–49</p>
+<pre><code>export type StrategyStepType = "process" | "decision" | "problem" | "solution" | "terminal";
+
+export interface StrategyStep {
+  type: StrategyStepType;
+  title: string;               // всегда видно
+  detail?: {
+    method?: string;           // конкретный вызов библиотеки, если есть
+    explanation: string;       // что и почему
+    result?: string;           // измеренный результат, если есть
+  };
+}</code></pre>
+<p>
+  <code>type</code> — закрытый union из 5 вариантов, и именно он определяет, как шаг отрисуется:
+</p>
+<table>
+  <tr><th>type</th><th>Как выглядит в UI</th><th>Смысл</th></tr>
+  <tr><td><code>process</code></td><td>Обычный прямоугольник</td><td>"что делается сейчас", например "Fetch listing via Axios"</td></tr>
+  <tr><td><code>decision</code></td><td>Пунктирная "таблетка", курсивом</td><td>Развилка вида "Blocked (403)? → Yes."</td></tr>
+  <tr><td><code>problem</code></td><td>Подсвечен как ошибка (красная рамка/текст)</td><td>"вот тут всё сломалось"</td></tr>
+  <tr><td><code>solution</code></td><td>Жирный текст</td><td>"вот чем починили"</td></tr>
+  <tr><td><code>terminal</code></td><td>Пунктирный, приглушённый</td><td>Конечная точка цепочки</td></tr>
+</table>
+<p>
+  <code>detail</code> — опционален; если есть, в UI по клику раскрывается блок с
+  <code>method</code>/<code>explanation</code>/<code>result</code>. Если <code>detail</code> нет —
+  кнопка неактивна, просто заголовок без возможности раскрыть.
+</p>
+
+<h3>Как это рендерится</h3>
+<p class="file-ref">Файл: <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/web/entities/source/ui/strategy-flow.tsx">apps/web/entities/source/ui/strategy-flow.tsx</a></p>
+<pre><code>export function StrategyFlow({ steps }: { steps: StrategyStep[] }) {
+  return (
+    &lt;div className="flex flex-col items-stretch gap-1.5"&gt;
+      {steps.map((step, index) => (
+        &lt;div key={index} className="flex flex-col items-center gap-1.5"&gt;
+          &lt;StepBox step={step} /&gt;
+          {index &lt; steps.length - 1 && &lt;span&gt;{"↓"}&lt;/span&gt;}
+        &lt;/div&gt;
+      ))}
+    &lt;/div&gt;
+  );
+}</code></pre>
+<p>
+  Просто маппит массив <code>steps</code> в вертикальную цепочку блоков со стрелками ↓ между ними —
+  тот самый "flowchart". <code>StepBox</code> внутри выбирает CSS-классы/форму по <code>step.type</code>
+  и управляет раскрытием <code>detail</code> через <code>useState</code>.
+</p>
+<p>
+  Есть ещё одна деталь — <b>глоссарий</b>: в строках <code>title</code>/<code>explanation</code>/
+  <code>result</code> можно писать <code>{{term}}</code> (например <code>{{cf-mitigated}}</code>),
+  и <code>renderWithGlossary()</code> превращает такой токен во всплывающую подсказку с определением
+  из <code>STRATEGY_GLOSSARY</code> — так термины объясняются прямо в UI, без ухода на другую
+  страницу.
+</p>
+
+<h3>Изменение для демонстрации: детали раскрыты по умолчанию</h3>
+<p>
+  До этого изменения каждый шаг рендерился свёрнутым (<code>useState(false)</code>) — на презентации
+  пришлось бы кликать по каждому шагу, чтобы показать его <code>detail</code>. Добавлен проп
+  <code>defaultExpanded</code> у <code>StrategyFlow</code>/<code>StepBox</code>: при
+  <code>defaultExpanded</code> все шаги сразу открыты, но каждый по-прежнему можно свернуть кликом
+  индивидуально — меняется только начальное состояние, не поведение.
+</p>
+<p class="file-ref">Файл: <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/web/entities/source/ui/strategy-flow.tsx">apps/web/entities/source/ui/strategy-flow.tsx</a></p>
+<pre><code>function StepBox({ step, defaultExpanded = false }: { step: StrategyStep; defaultExpanded?: boolean }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  // ...
+}
+
+export function StrategyFlow({ steps, defaultExpanded = false }: { steps: StrategyStep[]; defaultExpanded?: boolean }) {
+  return (
+    &lt;div className="flex flex-col items-stretch gap-1.5"&gt;
+      {steps.map((step, index) => (
+        &lt;div key={index} className="flex flex-col items-center gap-1.5"&gt;
+          &lt;StepBox step={step} defaultExpanded={defaultExpanded} /&gt;
+          {index &lt; steps.length - 1 && &lt;span className="text-muted-foreground"&gt;{"↓"}&lt;/span&gt;}
+        &lt;/div&gt;
+      ))}
+    &lt;/div&gt;
+  );
+}</code></pre>
+<p>
+  Проп включён (<code>&lt;StrategyFlow steps={source.strategySteps} defaultExpanded /&gt;</code>) в
+  обоих местах, где диаграмма показывается: вкладка "Strategy" на странице деталей источника
+  (<a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/web/widgets/source-detail/ui/source-detail-page.tsx">source-detail-page.tsx</a>)
+  и панель сравнения стратегий на странице Sources
+  (<a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/web/widgets/sources/ui/sources-page.tsx">sources-page.tsx</a>).
+  Для демо это значит: открыв вкладку Strategy у любого источника, вся цепочка "проблема → решение"
+  видна сразу, без кликов по каждому шагу.
+</p>
+
+<h2 class="question">04 · "Did you use mapping?" (слайд презентации — детальный разбор)</h2>
+<p>
+  Кикер слайда — реальный вопрос, который задают на собеседовании/ревью, и слайд специально
+  показывает, что в нём на самом деле два разных вопроса, спрятанных за одним словом "mapping". Это
+  тот же материал, что и в самой первой главе этого документа ("Что такое ETL-mapping"), но здесь —
+  ровно в том виде и структуре, в которой это подаётся на слайде.
+</p>
+<div class="src-grid">
+  <div class="src-card">
+    <div class="head"><span class="name">ETL mapping</span><span class="url">стадия 02 — внутри каждой CrawlStrategy</span></div>
+    <p>
+      Словарь каждого источника переводится в
+      <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/types.ts#L3"><code>RawVacancy</code></a>
+      уже во время парсинга, по-своему для каждого сайта:
+    </p>
+    <pre><code>hiringOrganization.name             → company
+jobLocationType === "TELECOMMUTE"   → isRemote</code></pre>
+    <p>Сводит четыре разных "словаря" источников в одну форму — <b>до</b> того, как что-либо коснётся базы.</p>
+  </div>
+  <div class="src-card">
+    <div class="head"><span class="name">Elasticsearch mapping</span><span class="url">стадия 04 — схема индекса</span></div>
+    <p>
+      Буквальный ES-термин: типы полей, <code>keyword</code> vs <code>text</code> под-поля для
+      фасетов и автокомплита.
+    </p>
+    <p>
+      Версионируется через
+      <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/search/crawlerResultsIndex.ts#L21"><code>CRAWLER_RESULTS_SCHEMA_VERSION</code></a>
+      — несовместимое изменение пересобирает индекс целиком, а не мигрирует на месте, поскольку это производный кэш.
+    </p>
+    <p>Этот mapping в буквальном смысле определяется <b>в момент</b> upsert'а.</p>
+  </div>
+</div>
+<p>
+  <b>Так какой из двух имелся в виду?</b> Формулировка "mapping данных из источников" читается как
+  ETL-смысл — который происходит раньше, по каждому источнику отдельно, а не в момент записи. Оба
+  значения реально существуют в системе; точный ответ называет оба и указывает, где живёт каждый.
+</p>
+
+<h2 class="question">05 · Under the hood (слайд презентации — детальный разбор)</h2>
+<p>
+  Слайд показывает, что реально пишется одним <code>upsert</code>-запросом в Elasticsearch — конец
+  цепочки "стадия 02" (ETL mapping) и начало "стадии 04" (ES mapping) с предыдущего слайда,
+  соединённые в одном реальном документе.
+</p>
+<p class="file-ref">Файл: <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/search/upsertVacancy.ts#L11-L54">apps/api/src/search/upsertVacancy.ts</a>, строки 11–54</p>
+<pre><code>const id = `${raw.sourceId}:${raw.externalId}`;   // ключ дедупликации
+
+const detailFields = {
+  ...(raw.description !== undefined ? { description: raw.description } : {}),
+  ...(raw.location !== undefined ? { location: raw.location } : {}),
+  ...(raw.isRemote !== undefined ? { isRemote: raw.isRemote } : {}),
+  // ...
+};
+
+await esClient.update({
+  index: CRAWLER_RESULTS_INDEX,
+  id,
+  doc: { sourceId: raw.sourceId, externalId: raw.externalId, title: raw.title, /* ... */ lastSeenAt: now, ...detailFields },
+  upsert: { /* то же самое + firstSeenAt: now */ },
+});</code></pre>
+<p>
+  Ключевые детали, которые слайд подсвечивает построчно на примере документа:
+</p>
+<ul>
+  <li><b>Ключ дедупликации</b> — <code>sourceId:externalId</code>, не сам ES <code>_id</code> из
+    базы и не <code>listingId</code>. Повторный краулинг того же источника обновляет
+    <code>lastSeenAt</code>, а не создаёт дубль.</li>
+  <li><b><code>isRemote: undefined</code> — намеренно пропущено, а не записано как
+    <code>false</code></b>. Спред <code>...(raw.isRemote !== undefined ? {...} : {})</code>
+    гарантирует: если источник не дал сигнала про remote/on-site, поле в документе просто
+    отсутствует, а не лжёт значением "не удалённая работа". Тот же принцип виден в комментарии у
+    <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/strategies/habrCareerStrategy.ts#L96-L100">habrCareerStrategy.ts:96-100</a>
+    про "отсутствие данных ≠ null-значение поля".</li>
+  <li><b><code>listingId</code> — только атрибуция, не ключ дедупликации.</b> Если одна и та же
+    вакансия попадается в нескольких листингах источника (например, разные города Craigslist),
+    записывается тот <code>listingId</code>, который обновил документ последним — это
+    <i>best-effort</i>-поле, а не часть идентичности вакансии.</li>
+  <li><b>Типы полей под конкретную задачу</b> (это и есть буквальный "Elasticsearch mapping"):
+    <code>title</code>/<code>company</code> — <code>text</code> с суб-полем
+    <code>.suggest</code> (нормализованный в lowercase <code>keyword</code>, специально для
+    автокомплита); <code>company</code>/<code>location</code> дополнительно несут
+    <code>.keyword</code> для facet-агрегаций — обычный <code>text</code> агрегировать напрямую
+    нельзя.</li>
+</ul>
+<p class="file-ref">Файл: <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/search/crawlerResultsIndex.ts#L63-L81">apps/api/src/search/crawlerResultsIndex.ts</a>, строки 63–81</p>
+<pre><code>title: {
+  type: "text",
+  fields: { suggest: { type: "keyword", normalizer: "lowercase_normalizer" } },
+},
+company: {
+  type: "text",
+  fields: {
+    keyword: { type: "keyword" },
+    suggest: { type: "keyword", normalizer: "lowercase_normalizer" },
+  },
+},</code></pre>
+<p>
+  <code>.keyword</code> и <code>.suggest</code> — два разных суб-поля с разным назначением, и это
+  не случайность: <code>company.keyword</code> должен остаться оригинального регистра, потому что
+  именно он управляет точным фильтром/отображением в facet "Company"; лишь отдельное
+  <code>.suggest</code>-поле нормализуется в lowercase — иначе автокомплит и facet конфликтовали бы
+  за одно и то же значение.
+</p>
+
+<h2 class="question">06 · Why build this (слайд презентации — детальный разбор)</h2>
+<p>
+  Закрывающий слайд — четыре итоговых тезиса, каждый — прямое следствие одной из глав выше.
+</p>
+<ol>
+  <li>
+    <b>Одна абстракция, четыре структурно разных сайта.</b> Интерфейс
+    <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/types.ts#L51"><code>CrawlStrategy</code></a>
+    ни разу не поменялся между static HTML, Cloudflare-gated JS, RSS и scoped-classifieds-сайтом —
+    это и есть глава "03 · Four Sources, Four Problems" выше.
+  </li>
+  <li>
+    <b>Реальные anti-bot проблемы, реальные фиксы.</b> Живой случай фингерпринтинга Cloudflare
+    заставил на ходу перейти на RSS — задокументировано по факту произошедшего, а не придумано
+    заранее. Это глава про <code>networkidle2</code>/fingerprint/RSS выше.
+  </li>
+  <li>
+    <b>Поисковый слой, ведущий себя как в production.</b> Faceted-фильтрация, автокомплит,
+    подсветка совпадений, пересобираемый индекс — это как раз то, что описано в главе "05 · Under
+    the hood" про <code>.keyword</code>/<code>.suggest</code>-суб-поля и
+    <code>CRAWLER_RESULTS_SCHEMA_VERSION</code>.
+  </li>
+  <li>
+    <b>Вежливость by design.</b> Каждый источник рейт-лимитится с джиттером и кэшируется — demo-
+    скрапер всё равно остаётся скрапером. Это глава про джиттер в
+    <a href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/rateLimiter.ts#L7-L15"><code>rateLimiter.ts</code></a>
+    выше.
+  </li>
+</ol>
+<p>
+  По сути этот слайд — не новая информация, а явная сшивка четырёх более ранних технических глав в
+  один связный вывод: "то, что мы построили, реально работает как маленькая, но настоящая
+  production data-ingestion система, а не только как демо для одного конкретного сайта".
+</p>
+
+</body>
+</html>
