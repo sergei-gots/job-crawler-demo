@@ -40,8 +40,8 @@ function renderWithGlossary(text: string) {
   });
 }
 
-function StepBox({ step }: { step: StrategyStep }) {
-  const [expanded, setExpanded] = useState(false);
+function StepBox({ step, defaultExpanded = false }: { step: StrategyStep; defaultExpanded?: boolean }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const hasDetail = Boolean(step.detail);
 
   if (step.type === "decision") {
@@ -99,13 +99,18 @@ function StepBox({ step }: { step: StrategyStep }) {
  * Renders one source's crawl-strategy step chain, click-to-expand per step. `steps` comes
  * straight from the API's `strategySteps` (see `CrawlStrategy.steps` in apps/api) — this
  * component has no data of its own, so it can never drift from the strategy code it describes.
+ *
+ * `defaultExpanded` starts every step's detail panel open instead of collapsed - each step stays
+ * individually collapsible by click, this only changes the initial state. Useful when the whole
+ * diagram needs to be visible at a glance (e.g. presenting it) rather than clicked through step by
+ * step.
  */
-export function StrategyFlow({ steps }: { steps: StrategyStep[] }) {
+export function StrategyFlow({ steps, defaultExpanded = false }: { steps: StrategyStep[]; defaultExpanded?: boolean }) {
   return (
     <div className="flex flex-col items-stretch gap-1.5">
       {steps.map((step, index) => (
         <div key={index} className="flex flex-col items-center gap-1.5">
-          <StepBox step={step} />
+          <StepBox step={step} defaultExpanded={defaultExpanded} />
           {index < steps.length - 1 && <span className="text-muted-foreground">{"↓"}</span>}
         </div>
       ))}

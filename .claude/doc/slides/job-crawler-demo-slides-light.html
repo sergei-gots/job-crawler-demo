@@ -1,0 +1,434 @@
+<!doctype html>
+<html data-theme="light">
+<head>
+<meta charset="utf8">
+<style>
+  :root {
+    --paper: #f2f5f4;
+    --paper-raised: #ffffff;
+    --ink: #16211f;
+    --ink-soft: #4e5f5b;
+    --ink-faint: #7c8b87;
+    --accent: #127d76;
+    --accent-deep: #0b5652;
+    --accent-soft: #dcefec;
+    --line: #d7dedc;
+    --code-bg: #0f1918;
+    --code-text: #bdf3e4;
+    --code-dim: #6f9a90;
+    --shadow: 0 1px 2px rgba(15, 25, 24, 0.04);
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #0f1615;
+    --paper-raised: #16201f;
+    --ink: #e9f2f0;
+    --ink-soft: #a9bdb8;
+    --ink-faint: #74857f;
+    --accent: #3fd4c4;
+    --accent-deep: #7ff0e2;
+    --accent-soft: #16302d;
+    --line: #29403c;
+    --code-bg: #08100f;
+    --code-text: #a9f3e0;
+    --code-dim: #4f7a70;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  }
+
+  .mono { font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", "Liberation Mono", monospace; }
+
+  /* ---------- deck shell (print layout: one slide per page) ---------- */
+
+  .deck { width: 100%; }
+
+  .slide {
+    width: 1280px;
+    height: 720px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 8vh 9vw 8vh;
+    page-break-after: always;
+    break-after: page;
+    background: var(--paper);
+  }
+  .slide:last-child { page-break-after: auto; break-after: auto; }
+
+  .slide-inner { max-width: 980px; margin: 0 auto; width: 100%; }
+
+  .eyebrow {
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--accent-deep);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 22px;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  h1 {
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", monospace;
+    font-size: 40px;
+    line-height: 1.14;
+    letter-spacing: -0.01em;
+    font-weight: 700;
+    margin: 0 0 22px;
+  }
+
+  h2.kicker {
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 8px;
+  }
+
+  h2.title {
+    font-size: 30px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    margin: 0 0 30px;
+  }
+
+  p.lede {
+    font-size: 19px;
+    color: var(--ink-soft);
+    max-width: 68ch;
+    margin: 0;
+  }
+  p.lede strong { color: var(--ink); font-weight: 600; }
+
+  code.chip {
+    font-family: ui-monospace, monospace;
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+    padding: 1px 6px;
+    border-radius: 5px;
+    font-size: 0.85em;
+  }
+  a.chip { text-decoration: none; }
+  a.chip:hover { text-decoration: underline; }
+
+  /* ---------- stack grid ---------- */
+
+  .stack-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  .stack-card {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+  }
+  .stack-card .role {
+    font-family: ui-monospace, monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent-deep);
+    display: block;
+    margin-bottom: 7px;
+  }
+  .stack-card .tools { font-size: 15px; color: var(--ink-soft); }
+
+  /* ---------- pipeline ---------- */
+
+  .pipeline {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+  }
+  .stage {
+    flex: 1 1 0;
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px 16px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .stage .num { font-family: ui-monospace, monospace; font-size: 11px; color: var(--accent-deep); }
+  .stage .name { font-weight: 650; font-size: 15.5px; }
+  .stage .detail { font-size: 13px; color: var(--ink-soft); line-height: 1.45; }
+  .stage.emphasis { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), var(--shadow); }
+  .arrow { flex: 0 0 30px; display: flex; align-items: center; justify-content: center; color: var(--ink-faint); font-family: ui-monospace, monospace; font-size: 16px; }
+  .pipeline-note { margin-top: 22px; font-size: 13.5px; color: var(--ink-faint); }
+
+  /* ---------- source cards ---------- */
+
+  .source-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .source-card {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+  }
+  .source-card .head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+  .source-card .src { font-weight: 700; font-size: 16px; }
+  .source-card .url { font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--ink-faint); text-decoration: none; }
+  .source-card .url:hover { text-decoration: underline; color: var(--accent-deep); }
+  .tag {
+    display: inline-block;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+    margin-bottom: 8px;
+  }
+  .source-card p { font-size: 13.5px; color: var(--ink-soft); margin: 0; line-height: 1.5; }
+
+  /* ---------- split panels ---------- */
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .panel {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 22px 24px;
+    box-shadow: var(--shadow);
+  }
+  .panel h4 { font-family: ui-monospace, monospace; font-size: 14.5px; margin: 0 0 4px; }
+  .panel .where { font-size: 12.5px; color: var(--accent-deep); font-family: ui-monospace, monospace; margin: 0 0 14px; }
+  .panel p { font-size: 14.5px; color: var(--ink-soft); margin: 0 0 10px; }
+  .panel p:last-child { margin-bottom: 0; }
+  .panel code { font-family: ui-monospace, monospace; font-size: 0.92em; background: var(--accent-soft); color: var(--accent-deep); padding: 1px 5px; border-radius: 4px; }
+
+  .verdict {
+    margin-top: 24px;
+    border-left: 3px solid var(--accent);
+    padding: 4px 0 4px 18px;
+    font-size: 17px;
+    color: var(--ink);
+    max-width: 78ch;
+  }
+  .verdict strong { color: var(--accent-deep); }
+
+  /* ---------- code block ---------- */
+
+  pre {
+    background: var(--code-bg);
+    color: var(--code-text);
+    border-radius: 10px;
+    padding: 22px 26px;
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", monospace;
+    font-size: 14px;
+    line-height: 1.7;
+    margin: 0;
+    overflow-x: auto;
+  }
+  pre .dim { color: var(--code-dim); }
+
+  /* ---------- closing list ---------- */
+
+  .closing-list { display: flex; flex-direction: column; gap: 16px; margin-top: 6px; padding: 0; }
+  .closing-list li {
+    list-style: none;
+    padding-left: 26px;
+    position: relative;
+    color: var(--ink-soft);
+    font-size: 17px;
+    max-width: 78ch;
+  }
+  .closing-list li::before { content: "→"; position: absolute; left: 0; color: var(--accent); font-family: ui-monospace, monospace; }
+  .closing-list strong { color: var(--ink); font-weight: 600; }
+
+  @page { size: 1280px 720px; margin: 0; }
+</style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+  <!-- 1 -->
+  <section class="slide">
+    <div class="slide-inner">
+      <p class="eyebrow">crawler management console &middot; demo walkthrough</p>
+      <h1>Job-Crawler-Demo: a full-stack pipeline that turns four messy job sites into one searchable index</h1>
+      <p class="lede">
+        Not a job board. A demonstration of the plumbing behind one: <strong>crawl heterogeneous,
+        sometimes-hostile sites &rarr; normalize what they give you &rarr; index it for real faceted
+        search</strong> &mdash; the same shape of problem as any production data-ingestion pipeline.
+      </p>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section class="slide">
+    <div class="slide-inner">
+      <h2 class="kicker">01 &middot; Stack</h2>
+      <h2 class="title">One demo, every layer of a real system</h2>
+      <div class="stack-grid">
+        <div class="stack-card"><span class="role">Backend</span><span class="tools">Node.js, Express, TypeScript</span></div>
+        <div class="stack-card"><span class="role">Frontend</span><span class="tools">Next.js, React, Feature-Sliced Design</span></div>
+        <div class="stack-card"><span class="role">Crawling</span><span class="tools">Puppeteer &middot; Axios + Cheerio</span></div>
+        <div class="stack-card"><span class="role">Storage</span><span class="tools">PostgreSQL &middot; Redis &middot; Elasticsearch</span></div>
+        <div class="stack-card"><span class="role">Auth</span><span class="tools">JWT, register / login</span></div>
+        <div class="stack-card"><span class="role">AI (planned)</span><span class="tools">Claude API enrichment</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="slide">
+    <div class="slide-inner">
+      <h2 class="kicker">02 &middot; Pipeline</h2>
+      <h2 class="title">What actually happens when a source is crawled</h2>
+      <div class="pipeline">
+        <div class="stage">
+          <span class="num">01</span><span class="name">Site</span>
+          <span class="detail">4 job sites, 4 shapes: static HTML, Cloudflare-gated JS, RSS, JSON-LD.</span>
+        </div>
+        <div class="arrow">&rarr;</div>
+        <div class="stage emphasis">
+          <span class="num">02</span><span class="name">CrawlStrategy</span>
+          <span class="detail">Per-source parser. <strong>Maps</strong> that site's fields into one shape.</span>
+        </div>
+        <div class="arrow">&rarr;</div>
+        <div class="stage">
+          <span class="num">03</span><span class="name">RawVacancy</span>
+          <span class="detail">The common internal shape &mdash; title, company, description, location&hellip;</span>
+        </div>
+        <div class="arrow">&rarr;</div>
+        <div class="stage emphasis">
+          <span class="num">04</span><span class="name">Upsert</span>
+          <span class="detail">Dedup by source+id. Applies Elasticsearch's own <strong>index mapping</strong>.</span>
+        </div>
+        <div class="arrow">&rarr;</div>
+        <div class="stage">
+          <span class="num">05</span><span class="name">Search UI</span>
+          <span class="detail">Free text, facets, autocomplete, match highlighting.</span>
+        </div>
+      </div>
+      <p class="pipeline-note">The two highlighted stages are where "mapping" actually applies &mdash; and they mean two different things. Slide 6.</p>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section class="slide">
+    <div class="slide-inner">
+      <h2 class="kicker">03 &middot; Four sources, four problems</h2>
+      <h2 class="title">The strategy pattern doing real work</h2>
+      <div class="source-grid">
+        <div class="source-card">
+          <div class="head"><span class="src">Habr Career</span><a class="url" href="https://career.habr.com" target="_blank" rel="noopener noreferrer">career.habr.com</a></div>
+          <span class="tag">Axios+Cheerio</span>
+          <p>Fully server-rendered &mdash; the easy case. Detail data comes from a schema.org/JobPosting JSON-LD block, more stable than scraping CSS classes.</p>
+        </div>
+        <div class="source-card">
+          <div class="head"><span class="src">RemoteOK</span><a class="url" href="https://remoteok.com" target="_blank" rel="noopener noreferrer">remoteok.com</a></div>
+          <span class="tag">Puppeteer</span>
+          <p>403s any non-browser request (Cloudflare). A real desktop UA through a real browser gets through; listing rows already embed full JSON-LD.</p>
+        </div>
+        <div class="source-card">
+          <div class="head"><span class="src">WeWorkRemotely</span><a class="url" href="https://weworkremotely.com" target="_blank" rel="noopener noreferrer">weworkremotely.com</a></div>
+          <span class="tag">Puppeteer + RSS</span>
+          <p>Headless Puppeteer got fingerprinted after one detail-page nav. Fix: the category's own RSS feed mirrors the listing 1:1 and isn't gated at all.</p>
+        </div>
+        <div class="source-card">
+          <div class="head"><span class="src">Craigslist</span><a class="url" href="https://craigslist.org" target="_blank" rel="noopener noreferrer">craigslist.org</a></div>
+          <span class="tag">Axios+Cheerio</span>
+          <p>No bot wall &mdash; but general classifieds, not tech. Scoped to <code class="chip">cat=sof</code> across 5 cities to match the other sources' focus.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section class="slide">
+    <div class="slide-inner">
+      <h2 class="kicker">04 &middot; "Did you use mapping?"</h2>
+      <h2 class="title">Two different questions hiding in one word</h2>
+      <div class="split">
+        <div class="panel">
+          <h4>ETL mapping</h4>
+          <p class="where">stage 02 &mdash; inside each CrawlStrategy</p>
+          <p>Every source's own vocabulary gets translated into <code>RawVacancy</code> at parse time, per site:</p>
+          <p><code>hiringOrganization.name</code> &rarr; <code>company</code></p>
+          <p><code>jobLocationType === "TELECOMMUTE"</code> &rarr; <code>isRemote</code></p>
+          <p>Reconciles four different worlds into one shape, <strong>before</strong> anything touches the database.</p>
+        </div>
+        <div class="panel">
+          <h4>Elasticsearch mapping</h4>
+          <p class="where">stage 04 &mdash; the index schema</p>
+          <p>The literal ES term: field types, <code>keyword</code> vs <code>text</code> sub-fields for facets and autocomplete.</p>
+          <p>Versioned via <code>CRAWLER_RESULTS_SCHEMA_VERSION</code> &mdash; an incompatible change rebuilds the index rather than migrating in place, since it's a derived cache.</p>
+          <p>This mapping is genuinely defined <strong>at</strong> upsert time.</p>
+        </div>
+      </div>
+      <div class="verdict">
+        <strong>So which one was meant?</strong> "Mapping data from sources" reads as the ETL
+        sense &mdash; which happens earlier, per source, not at the write. Both exist here; the accurate
+        answer names both and says where each one lives.
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section class="slide">
+    <div class="slide-inner">
+      <h2 class="kicker">05 &middot; Under the hood</h2>
+      <h2 class="title">The Elasticsearch document, end to end</h2>
+      <pre><span class="dim">// what one upsert actually writes &mdash; dedup key is sourceId:externalId</span>
+{
+  sourceId: 6,
+  externalId: "h4qi8Z4ZqSoYKXoguDQNEp",   <span class="dim">// stable per-listing id</span>
+  title: "Senior Full Stack Engineer",     <span class="dim">// text, + .suggest</span>
+  company: "Acme Corp",                    <span class="dim">// text, + .keyword, + .suggest</span>
+  location: "San Francisco, CA",           <span class="dim">// text, + .keyword</span>
+  isRemote: <span class="dim">undefined</span>,                       <span class="dim">// omitted, not false &mdash; no signal</span>
+  specialization: "Full-Stack",            <span class="dim">// keyword, best-effort</span>
+  listingId: 8,                            <span class="dim">// attribution only, not the dedup key</span>
+  lastSeenAt: "2026-09-05T15:58:42Z"
+}</pre>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section class="slide">
+    <div class="slide-inner">
+      <h2 class="kicker">06 &middot; Why build this</h2>
+      <h2 class="title">What the demo is actually proving</h2>
+      <ul class="closing-list">
+        <li><strong>One abstraction, four structurally different sites.</strong> The <a class="chip" href="https://github.com/sergei-gots/job-crawler-demo/blob/main/apps/api/src/crawler/types.ts#L51" target="_blank" rel="noopener noreferrer"><code class="chip">CrawlStrategy</code></a> interface never changed across static HTML, Cloudflare-gated JS, RSS, and a scoped classifieds site.</li>
+        <li><strong>Real anti-bot problems, real fixes.</strong> A live Cloudflare fingerprinting issue forced a mid-build pivot to RSS &mdash; documented as it happened, not simulated.</li>
+        <li><strong>A search layer that behaves like production.</strong> Faceted filtering, autocomplete, match highlighting, a rebuildable index.</li>
+        <li><strong>Politeness by design.</strong> Every source is rate-limited with jitter and cached &mdash; a demo scraper is still a scraper.</li>
+      </ul>
+    </div>
+  </section>
+
+</div>
+
+</body>
+</html>
