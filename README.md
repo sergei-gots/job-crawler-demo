@@ -8,224 +8,27 @@ showcasing a modern web crawling and data processing stack:
 - **Crawling**: Puppeteer, Axios + Cheerio
 - **Data**: PostgreSQL, Elasticsearch, Redis
 - **Auth**: JWT
-- **AI enrichment**: Claude API
+- **AI enrichment**: Claude API (planned)
 
 See `CLAUDE.md` for the full spec and `ARCHITECTURE.md` for data models and component design.
 
 ## Table of contents
 
-- [Status: implemented so far](#status-implemented-so-far)
-  - [Sources & Crawling — Increment 1 → 3a](#sources--crawling--increment-1--3a)
-  - [Real crawler + Redis + minimal Elasticsearch — Increment 2](#real-crawler--redis--minimal-elasticsearch--increment-2)
-  - [Vacancy detail crawl — Increment 2.2](#vacancy-detail-crawl--increment-22)
-  - [Faceted vacancy search — Increment 3b](#faceted-vacancy-search--increment-3b)
-  - [Search autocomplete — Increment 3c](#search-autocomplete--increment-3c)
-  - [Puppeteer RemoteOK crawl strategy — Increment 4](#puppeteer-remoteok-crawl-strategy--increment-4)
-  - [Automated regression tests + CI — Increment 5](#automated-regression-tests--ci--increment-5)
-  - [Not yet implemented](#not-yet-implemented)
 - [Getting started](#getting-started)
   - [1. Start infrastructure](#1-start-infrastructure)
   - [2. Install dependencies](#2-install-dependencies)
   - [3. Configure environment variables](#3-configure-environment-variables)
   - [4. Apply database migrations and seed data](#4-apply-database-migrations-and-seed-data)
   - [5. Run the apps](#5-run-the-apps)
+  - [Where everything runs](#where-everything-runs)
+- [What this application does](#what-this-application-does)
 - [Checking crawled data](#checking-crawled-data)
   - [Option A — via the API](#option-a--via-the-api)
   - [Option B — query Elasticsearch directly](#option-b--query-elasticsearch-directly)
   - [Why a run sometimes shows `cache: miss` right after a previous one](#why-a-run-sometimes-shows-cache-miss-right-after-a-previous-one)
 - [Project structure](#project-structure)
 - [Frontend architecture notes](#frontend-architecture-notes)
-
-## Status: implemented so far
-
-- Monorepo scaffold (npm workspaces): `apps/api` (Express) + `apps/web` (Next.js).
-- `apps/api`: Express + TypeScript server, Winston logging, `GET /health`.
-- PostgreSQL via Docker Compose, Prisma ORM, `User` model (email, password hash, optional name).
-- JWT auth:
-  - `POST /auth/register`
-  - `POST /auth/login`
-  - `GET /auth/me`
-- Profile management:
-  - `PATCH /users/me` (name + email, requires current password)
-  - `PATCH /users/me/password`
-- `apps/web`: Next.js (App Router, TypeScript, Tailwind), Feature-Sliced Design. Layers so far:
-  - `entities/session`, `entities/user`
-  - `features/auth`, `features/profile`
-  - `widgets/sidebar`, `widgets/dashboard`, `widgets/profile`
-
-  Pages: login/register, a protected dashboard stub, and a profile page (edit name, change
-  password).
-
-### [Sources & Crawling — Increment 1 → 3a](.claude/features/01_FEATURE_SOURCES_AND_JOBS.md)
-
-See `.claude/features/01_FEATURE_SOURCES_AND_JOBS.md` (original Increment 1 design) and
-`.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md` (Increment 3a refactor — supersedes the
-per-user `CrawlerJob` model described in that original doc).
-
-- Prisma models: `CrawlSource`, `CrawlRun`, `CrawlLog`.
-- Seeded with four sources (matches `CLAUDE.md` → Data Sources):
-  - Habr Career
-  - RemoteOK
-  - WeWorkRemotely
-  - Craigslist
-- Crawling is a shared, global operation, not owned per user — any logged-in user can trigger a
-  crawl of any source, or crawl all sources at once (see `CLAUDE.md` → Security Considerations).
-- Endpoints (behind JWT auth; no per-user ownership check, since crawling has no owner):
-  - `GET /sources`
-  - `GET /sources/:id`
-  - `POST /sources/:id/crawl`
-  - `POST /sources/:id/crawl/stop`
-  - `POST /sources/crawl-all`
-  - `GET /sources/:id/run` (the source's latest `CrawlRun`, with its `CrawlLog[]`)
-- Frontend:
-  - `entities/source`
-  - `features/run-crawl`
-  - `widgets/sources`, `widgets/source-detail`
-  - Pages: `/sources`, `/sources/[id]`
-
-Increment 1 originally built this around a per-user `CrawlerJob` entity (pick sources + keywords,
-own your own crawler jobs). Increment 3a removed it: `keywords` was always a read-time
-Elasticsearch filter, never a crawl parameter, so bundling "which sources to crawl" with "how to
-filter results" mixed two unrelated concerns. Crawling now lives directly on Sources; filtering/
-search moved to its own page (Increment 3b).
-
-### [Real crawler + Redis + minimal Elasticsearch — Increment 2](.claude/features/02_FEATURE_REAL_CRAWLER_REDIS_ES.md)
-
-See `.claude/features/02_FEATURE_REAL_CRAWLER_REDIS_ES.md`.
-
-- Crawling a source runs a real Axios+Cheerio crawl of `career.habr.com` — the only source with a
-  parser so far (Puppeteer turned out unnecessary; see the doc's spike notes). Other seeded
-  sources log a `WARN` and are skipped rather than failing the run.
-- Redis (`apps/api/src/crawler/`) provides per-source rate limiting and a short-TTL raw-page
-  cache.
-- Elasticsearch (`apps/api/src/search/`) stores parsed vacancies, deduplicated by
-  `sourceId:externalId`.
-- Read endpoint: `GET /sources/:id/vacancies`.
-- A simple vacancy list on the Source detail page — see "Checking crawled data" below.
-- No AI enrichment yet.
-
-### [Vacancy detail crawl — Increment 2.2](.claude/features/02b_FEATURE_VACANCY_DETAIL_CRAWL.md)
-
-See `.claude/features/02b_FEATURE_VACANCY_DETAIL_CRAWL.md`.
-
-- After crawling the `habr_career` listing page(s), each vacancy's own detail page is fetched too
-  and parsed via its `schema.org/JobPosting` JSON-LD block — adding `description`, `location`,
-  `isRemote`, and `skillsSummary` (habr's own auto-generated "Навыки: ..." lead sentence, stored
-  as raw text, not split into a skill list) to the stored vacancy.
-- **No salary field.** A manual check found habr almost never discloses an actual salary (100%
-  of ~150 sampled listings showed "not specified"); the only visible number is a market estimate
-  for similar roles, not the employer's own figure — storing it as `salary` would misrepresent
-  the source, so it's intentionally left out.
-- **No cap on how many vacancies get a detail fetch per run** — every vacancy found by the
-  listing pass is detail-crawled, bounded only by the existing `maxPagesToCrawl`. Detail requests
-  share the same per-source rate limiter as the listing crawl (`habr_career`'s seeded
-  `defaultDelayMs` is 12s), so a full run can take several minutes by design — crawling
-  politeness was prioritized over run speed for this project.
-- Each vacancy on the Source detail page has a small **"View raw ES data"** button that toggles a
-  pretty-printed JSON dump of that vacancy's Elasticsearch document inline (the exact same object
-  returned by `GET /sources/:id/vacancies`, no extra API call). Purely illustrative — this is a
-  demo app, so the button makes the underlying Elasticsearch storage visible rather than hiding
-  it behind the UI. Hovering the button shows a tooltip with the document's direct ES REST URL
-  (`http://localhost:9200/crawler_results/_doc/{sourceId}:{externalId}`) for anyone who wants to
-  `curl` it themselves.
-- The `description`-aware keyword matching this increment added carries forward into
-  Increment 3b's global search endpoint below.
-
-### [Faceted vacancy search — Increment 3b](.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md#phase-3b--search-page-with-facets)
-
-See `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`'s Phase 3b section.
-
-- `parseHabrVacancyDetail` also extracts `specialization` and `seniority` from the same stable
-  habr lead-sentence template already parsed for `skillsSummary` (`"... Квалификация: <seniority>.
-  Специализации: <specialization>."`) — still template parsing, not AI interpretation. Each clause
-  is matched independently by its own label, so a vacancy missing one clause (e.g. no
-  `Квалификация`) just gets `null` for that field rather than misattributing text.
-- `location` and `company` gained a `.keyword` sub-field in the Elasticsearch mapping so they're
-  aggregatable (for facets) as well as full-text-searchable (for `q`). As with the 2.2 fields,
-  existing documents only pick these up once they're re-crawled — not retroactively.
-- New endpoint: `GET /vacancies/search` (global, not per-source) — query params `q` (free text
-  over title/company/description, OR semantics), repeatable facet params `specialization`,
-  `seniority`, `isRemote`, `location`, `company`, and `page`/`pageSize` (server-side pagination,
-  default page size 10, capped at 50). Returns `{ hits, total, facets }`, where `total` is the
-  exact match count across all pages and `facets` is `terms`-aggregation bucket counts per facet
-  field for the current filtered set. *Known simplification*: every facet's counts include its own
-  active selection (no `post_filter`), so they show "how many results this selection already has,"
-  not "how many more if I add this option" — flagged as deliberate, not a bug.
-- New Search page (`/search`) — free-text input, a facet panel (Specialization / Seniority level /
-  Remote / On-site, each a checkbox group with bucket counts), and a results list reusing the same
-  `VacancyCard` component as the Source detail page (`entities/vacancy/ui/`). This is the app's
-  first two-column page layout — a deliberate, scoped exception to the single-column convention
-  documented in `CLAUDE.md`'s UI Design Guidelines.
-
-### [Search autocomplete — Increment 3c](.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md#phase-3c--search-autocomplete-typeahead)
-
-See `.claude/features/03_FEATURE_CRAWL_SEARCH_SEPARATION.md`'s Phase 3c section.
-
-- The Search page's free-text box now shows a suggestions dropdown as you type: distinct, deduped
-  `title`/`company` values matching a case-insensitive prefix (e.g. typing `Je` surfaces
-  `JetBrains`, shown in its original case), each tagged with which field it came from. Selecting a
-  suggestion fills the box and runs the normal search — it's an aid for formulating a query, not a
-  replacement for the results page or a per-vacancy result preview.
-- New endpoint: `GET /vacancies/suggest?q=` — returns `{ suggestions: [{ value, field }] }`; `field`
-  is `"title"` or `"company"`. Requires at least 2 characters; matches via prefix `terms`
-  aggregations on new `title.suggest`/`company.suggest` keyword sub-fields (a lowercase normalizer,
-  separate from the Increment 3b facet `.keyword` sub-fields, which must stay original-case).
-- Built on the already-installed `@base-ui/react` `combobox` primitive (`shared/ui/combobox.tsx`) —
-  no new frontend dependency.
-- Backend: this increment adds the repo's first automated tests (Vitest,
-  `apps/api/src/search/suggestVacancies.test.ts`) for the new suggestion query builder, run via:
-
-  ```bash
-  npm run test
-  ```
-
-  in `apps/api`. Manual browser testing per `CLAUDE.md`'s Testing Philosophy remains the
-  primary method everywhere else. (The suite was substantially expanded in Increment 5 — see
-  below.)
-
-### [Puppeteer RemoteOK crawl strategy — Increment 4](.claude/features/04_FEATURE_PUPPETEER_REMOTEOK.md)
-
-See `.claude/features/04_FEATURE_PUPPETEER_REMOTEOK.md`.
-
-- RemoteOK (`remoteok.com`) now has a real `CrawlStrategy` (`remoteOkStrategy.ts`), using Puppeteer
-  to get past a Cloudflare bot check that 403s plain non-browser requests — confirmed via a spike,
-  not assumed. Presents a realistic desktop Chrome UA rather than any bot-identifying string.
-- Listing-only crawl, no detail-page pass: RemoteOK's `/remote-dev-jobs` listing embeds a full
-  schema.org `JobPosting` JSON-LD block per job row (description, etc.) plus reliable `data-*`
-  attributes (id, company, posted date) directly in the DOM, so a detail-page fetch would just
-  re-request the same information. `enrichDetails` is simply omitted.
-- `baseSalary` and location fields in that JSON-LD are not stored — a spike found the exact same
-  value on every sampled row (boilerplate schema.org filler for search-engine indexing, not a real
-  per-employer figure), the same reasoning already applied to habr_career's dropped salary field.
-- Skill tags come from the listing's tag chips, deduped (each renders twice in the DOM for
-  responsive layout) and joined into the existing `skillsSummary` string field.
-- The habr_career strategy file was renamed `axiosCheerioStrategy.ts` → `habrCareerStrategy.ts` as
-  part of this increment — strategy files are now named after the site they crawl, not the
-  fetch/parse library, since dispatch (`getStrategy`) is already 1:1 by source name and the library
-  is an implementation detail internal to each file.
-
-### [Automated regression tests + CI — Increment 5](.claude/features/05_FEATURE_CRAWLER_REGRESSION_TESTS_CI.md)
-
-- Expanded the test suite (Vitest) beyond `suggestVacancies.test.ts` to cover the crawler's most
-  fragile part — site-markup-dependent parsing — against hand-built HTML fixtures
-  (`apps/api/src/crawler/strategies/__fixtures__/`), not the live sites: `habrCareerStrategy.ts`'s
-  listing/detail parsers, `remoteOkStrategy.ts`'s listing parser (including its malformed-JSON-LD
-  fallback and tag-dedup behavior), `htmlToText.ts`, `getStrategy()`'s dispatch map, and
-  `upsertVacancy.ts`'s undefined-vs-null field-merge semantics. `parseHabrCareerPage`/
-  `parseHabrVacancyDetail`/`parseListingPage` were exported (previously module-private) so tests
-  can call them directly instead of mocking `axios`/`puppeteer` just to reach pure parsing logic.
-- New `.github/workflows/ci.yml`: runs lint, typecheck, and the full test suite for `apps/api` on
-  every push to `main` and every pull request — a test suite nobody runs automatically isn't
-  regression protection, so this is what actually makes the new tests enforce anything.
-- Explicitly out of scope for this increment: testing `crawlRunner.ts`'s orchestration (status
-  transitions, cancellation, `CrawlLog` writes) — real value, but needs Prisma+Redis+strategy
-  mocking, a bigger lift than this pass; and any live-network/live-Puppeteer test.
-
-### Not yet implemented
-
-- AI enrichment
-
-Track progress against the MVP plan in `CLAUDE.md` → User Stories.
+- [Further reading](#further-reading)
 
 ## Getting started
 
@@ -236,12 +39,6 @@ Requirements: Node.js 24+, npm 11+, Docker (for Postgres, Redis, Elasticsearch).
 ```bash
 docker compose up -d
 ```
-
-Brings up:
-
-- Postgres on `localhost:5435`
-- Redis on `localhost:6380`
-- Elasticsearch on `localhost:9200`
 
 See `docker-compose.yml` for the exact service definitions.
 
@@ -292,13 +89,9 @@ Craigslist).
 npm run dev:api
 ```
 
-Starts `apps/api` on `http://localhost:4000` (`GET /health` to check it's up).
-
 ```bash
 npm run dev:web
 ```
-
-Starts `apps/web` on `http://localhost:3000`.
 
 `dev:api`/`dev:web`/`build`/`lint` are our own scripts (see `package.json` → `scripts`), each
 delegating to the matching command inside that workspace via:
@@ -307,11 +100,41 @@ delegating to the matching command inside that workspace via:
 npm run <script> --workspace <path>
 ```
 
+### Where everything runs
+
+| Service | Port | URL | Notes |
+| --- | --- | --- | --- |
+| Web app (Next.js) | `3000` | http://localhost:3000 | Main UI |
+| API (Express) | `4000` | http://localhost:4000 | `GET /health` to check it's up |
+| Postgres | `5435` | `localhost:5435` | Users, crawl runs/logs, sources |
+| Redis | `6380` | `localhost:6380` | Rate limiting + short-TTL page cache |
+| Elasticsearch | `9200` | http://localhost:9200 | Crawled vacancy index (`crawler_results`) |
+
+## What this application does
+
+Once running, this is what you can actually do in it:
+
+1. **Register and log in** — JWT-based auth (`/auth/register`, `/auth/login`).
+2. **Browse the predefined data sources** — Habr Career, RemoteOK, WeWorkRemotely, and Craigslist
+   (scoped to `cat=sof`), each with its own crawl strategy under the hood.
+3. **Start or stop a crawl** — per source, or all sources at once. Crawling is a shared, global
+   operation: any logged-in user can trigger or stop it, since results aren't owned per user (see
+   `CLAUDE.md` → Security Considerations).
+4. **Watch a crawl run** — status, progress, and live execution logs per source.
+5. **Search collected vacancies** — free text plus facets (Specialization, Seniority level,
+   Remote/On-site, Location, Company) and relevance sorting, backed by Elasticsearch.
+6. **AI-enriched summaries** — planned, not yet implemented; will run through a swappable
+   `AIEnricher` interface (`MockAIEnricher` first, Claude API later).
+
+For *why* each piece was built the way it was (crawl-strategy choices, robots.txt/Cloudflare
+findings, schema decisions), see the `.claude/features/` design docs and the `data-sources` /
+`elasticsearch-conventions` skills referenced from `CLAUDE.md`.
+
 ## Checking crawled data
 
-There's no full vacancy list in the UI yet beyond the Source detail page's simple list (see
-Increment 2 above) — the **Execution logs** panel on that page shows crawl progress, not the
-parsed results themselves. Two ways to see everything that was actually crawled:
+There's no full vacancy list in the UI yet beyond the Source detail page's simple list — the
+**Execution logs** panel on that page shows crawl progress, not the parsed results themselves. Two
+ways to see everything that was actually crawled:
 
 ### Option A — via the API
 
@@ -362,12 +185,11 @@ duplicate a vacancy, it just bumps that document's `lastSeenAt`.
 
 ### Why a run sometimes shows `cache: miss` right after a previous one
 
-The raw HTML page fetched per crawl (listing pages and, since Increment 2.2, each vacancy's
-detail page) is cached in Redis for 1 hour (`PAGE_CACHE_TTL_SECONDS` in
-`apps/api/src/crawler/pageCache.ts`) — long enough to cover a full habr_career run (~15 min at
-the seeded rate limit), short enough to not matter for freshness. Two runs more than an hour
-apart will both hit the network; two runs within that window will show `cache: hit` in `CrawlLog`
-for pages already fetched.
+The raw HTML page fetched per crawl (listing pages and each vacancy's detail page) is cached in
+Redis for 1 hour (`PAGE_CACHE_TTL_SECONDS` in `apps/api/src/crawler/pageCache.ts`) — long enough to
+cover a full habr_career run (~15 min at the seeded rate limit), short enough to not matter for
+freshness. Two runs more than an hour apart will both hit the network; two runs within that window
+will show `cache: hit` in `CrawlLog` for pages already fetched.
 
 ## Project structure
 
@@ -416,3 +238,10 @@ for pages already fetched.
   project source — owned and freely editable — not files pulled from `node_modules`. The
   `"ui": "@/shared/ui"` alias in `components.json` is what tells the CLI which folder to write
   generated components into.
+
+## Further reading
+
+- `CLAUDE.md` — full project spec, tech stack, data sources, security considerations.
+- `ARCHITECTURE.md` — data models and component design.
+- `.claude/features/` — per-increment design docs (the "why" behind each build step).
+- `.claude/doc/` — plain-language write-ups of the tech stack (Russian, personal learning notes).
